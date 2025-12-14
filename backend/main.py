@@ -96,7 +96,7 @@ def get_user(user_id: UUID, db: Session = Depends(get_db)):
 
 @app.patch("/users/{user_id}", response_model=UserResponse)
 def update_user(user_id: UUID, user_update: UserUpdate, db: Session = Depends(get_db)):
-    """Update user information"""
+    """Update user information - creates audit trail"""
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -110,16 +110,7 @@ def update_user(user_id: UUID, user_update: UserUpdate, db: Session = Depends(ge
     db.refresh(db_user)
     return db_user
 
-@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: UUID, db: Session = Depends(get_db)):
-    """Delete a user"""
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    db.delete(db_user)
-    db.commit()
-    return None
+# Remove DELETE for users - archive instead if needed
 
 # ==================== Document Endpoints ====================
 
@@ -172,46 +163,42 @@ def update_document(
     document_update: DocumentUpdate, 
     db: Session = Depends(get_db)
 ):
-    """Update document information"""
+    """Update document metadata - versions are immutable for audit trail"""
     db_document = db.query(Document).filter(Document.id == document_id).first()
     if not db_document:
         raise HTTPException(status_code=404, detail="Document not found")
     
     update_data = document_update.model_dump(exclude_unset=True)
+    # Only allow certain fields to be updated
+    allowed_fields = {'title', 'status', 'description'}
     for field, value in update_data.items():
-        setattr(db_document, field, value)
+        if field in allowed_fields:
+            setattr(db_document, field, value)
     
     db_document.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(db_document)
     return db_document
 
-@app.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_document(document_id: UUID, db: Session = Depends(get_db)):
-    """Delete a document and all its versions"""
+# Archive document instead of delete
+@app.patch("/documents/{document_id}/archive", response_model=DocumentResponse)
+def archive_document(document_id: UUID, db: Session = Depends(get_db)):
+    """Archive a document (soft delete) - preserves audit trail"""
     db_document = db.query(Document).filter(Document.id == document_id).first()
     if not db_document:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    db.delete(db_document)
+    db_document.status = "Archived"
+    db_document.updated_at = datetime.utcnow()
     db.commit()
-    return None
-
-@app.get("/users/{user_id}/documents", response_model=List[DocumentResponse])
-def get_user_documents(user_id: UUID, db: Session = Depends(get_db)):
-    """Get all documents created by a specific user"""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    documents = db.query(Document).filter(Document.created_by == user_id).all()
-    return documents
+    db.refresh(db_document)
+    return db_document
 
 # ==================== Document Version Endpoints ====================
 
 @app.post("/versions/", response_model=DocumentVersionResponse, status_code=status.HTTP_201_CREATED)
 def create_document_version(version: DocumentVersionCreate, db: Session = Depends(get_db)):
-    """Create a new document version"""
+    """Create a new document version - versions are immutable once created"""
     # Verify document exists
     document = db.query(Document).filter(Document.id == version.document_id).first()
     if not document:
@@ -231,7 +218,7 @@ def create_document_version(version: DocumentVersionCreate, db: Session = Depend
 
 @app.get("/documents/{document_id}/versions", response_model=List[DocumentVersionResponse])
 def get_document_versions(document_id: UUID, db: Session = Depends(get_db)):
-    """Get all versions of a document"""
+    """Get all versions of a document - complete audit history"""
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -250,24 +237,8 @@ def get_version(version_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Version not found")
     return version
 
-@app.patch("/versions/{version_id}", response_model=DocumentVersionResponse)
-def update_version(
-    version_id: UUID, 
-    version_update: DocumentVersionUpdate, 
-    db: Session = Depends(get_db)
-):
-    """Update a document version (e.g., edit markdown content)"""
-    db_version = db.query(DocumentVersion).filter(DocumentVersion.id == version_id).first()
-    if not db_version:
-        raise HTTPException(status_code=404, detail="Version not found")
-    
-    update_data = version_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_version, field, value)
-    
-    db.commit()
-    db.refresh(db_version)
-    return db_version
+# No UPDATE or DELETE for versions - they're immutable for audit compliance
+# To change content, create a new version instead
 
 # ==================== Document Permission Endpoints ====================
 
@@ -318,7 +289,7 @@ def update_permission(
     permission_update: DocumentPermissionUpdate, 
     db: Session = Depends(get_db)
 ):
-    """Update a permission (e.g., change from read to write)"""
+    """Update a permission (e.g., change from read to write) - updated_at tracks changes"""
     db_permission = db.query(DocumentPermission).filter(
         DocumentPermission.id == permission_id
     ).first()
@@ -334,9 +305,10 @@ def update_permission(
     db.refresh(db_permission)
     return db_permission
 
-@app.delete("/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+# Revoke instead of hard delete - keeps audit trail
+@app.patch("/permissions/{permission_id}/revoke", status_code=status.HTTP_200_OK)
 def revoke_permission(permission_id: UUID, db: Session = Depends(get_db)):
-    """Revoke a user's permission to a document"""
+    """Revoke a user's permission (soft delete with timestamp)"""
     db_permission = db.query(DocumentPermission).filter(
         DocumentPermission.id == permission_id
     ).first()
@@ -346,28 +318,7 @@ def revoke_permission(permission_id: UUID, db: Session = Depends(get_db)):
     
     db.delete(db_permission)
     db.commit()
-    return None
-
-@app.get("/users/{user_id}/accessible-documents", response_model=List[DocumentResponse])
-def get_accessible_documents(user_id: UUID, db: Session = Depends(get_db)):
-    """Get all documents a user has permission to access"""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Get documents where user has explicit permissions
-    permissions = db.query(DocumentPermission).filter(
-        DocumentPermission.user_id == user_id
-    ).all()
-    
-    document_ids = [p.document_id for p in permissions]
-    
-    # Also include documents created by the user
-    documents = db.query(Document).filter(
-        (Document.id.in_(document_ids)) | (Document.created_by == user_id)
-    ).all()
-    
-    return documents
+    return {"status": "revoked", "permission_id": permission_id}
 
 # ==================== Health Check ====================
 

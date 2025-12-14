@@ -1,0 +1,46 @@
+erDiagram
+    users ||--o{ documents : creates
+    users ||--o{ document_versions : creates
+    users ||--o{ document_permissions : "has access"
+    
+    documents ||--o{ document_versions : has
+    documents ||--o{ document_permissions : "controls access"
+    
+    users {
+        uuid id PK
+        string email UK
+        string full_name
+        string role
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    documents {
+        uuid id PK
+        uuid created_by FK
+        uuid current_version_id FK
+        string title
+        string status
+        text description
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    document_versions {
+        uuid id PK
+        uuid document_id FK
+        uuid created_by FK
+        integer version_number
+        text markdown_content
+        string pdf_url
+        text change_summary
+        timestamp created_at
+    }
+    
+    document_permissions {
+        uuid id PK
+        uuid document_id FK
+        uuid user_id FK
+        string permission_type
+        timestamp granted_at
+    }

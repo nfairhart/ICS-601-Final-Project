@@ -1,23 +1,25 @@
 import os
 import chromadb
-from chromadb.config import Settings
+from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
-# Initialize ChromaDB
-chroma_client = chromadb.Client(Settings(
-    chroma_db_impl="duckdb",
-    persist_directory=os.getenv('CHROMA_PERSIST_DIR', './chroma_data'),
-    anonymized_telemetry=False
-))
+# ✅ NEW API: Use PersistentClient instead of Client(Settings(...))
+chroma_client = chromadb.PersistentClient(
+    path=os.getenv('CHROMA_PERSIST_DIR', './chroma_data')
+)
+
+# Add embedding function (required for new API)
+embedding_fn = OpenAIEmbeddingFunction(
+    api_key=os.getenv('OPENAI_API_KEY'),
+    model_name="text-embedding-3-small"
+)
 
 def get_collection():
     """Get or create the documents collection"""
-    try:
-        return chroma_client.get_collection("documents")
-    except:
-        return chroma_client.create_collection(
-            name="documents",
-            metadata={"hnsw:space": "cosine"}
-        )
+    return chroma_client.get_or_create_collection(
+        name="documents",
+        metadata={"hnsw:space": "cosine"},
+        embedding_function=embedding_fn
+    )
 
 def add_to_rag(document_id: str, version_id: str, title: str, content: str):
     """Add document version to RAG"""

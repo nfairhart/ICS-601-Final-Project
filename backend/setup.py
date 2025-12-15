@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import text
-from models import engine, init_db
+from .database import engine
+from .models import init_db
 
 load_dotenv()
 
@@ -42,7 +43,7 @@ def setup():
     
     print("\n=== Setup complete ===")
     print("\nNext steps:")
-    print("1. Run: uvicorn app:app --reload")
+    print("1. Run: uvicorn backend.app:app --reload")
     print("2. Visit: http://localhost:8000/docs")
 
 if __name__ == "__main__":

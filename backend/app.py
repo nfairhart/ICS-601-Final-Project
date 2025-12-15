@@ -1,3 +1,4 @@
+"""Updated FastAPI app with PydanticAI agent integration."""
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
@@ -6,8 +7,9 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
-from models import get_db, User, Document, DocumentVersion, DocumentPermission
-from rag import add_to_rag, search_rag, delete_from_rag
+from .database import get_db
+from .models import User, Document, DocumentVersion, DocumentPermission
+from .rag import add_to_rag, search_rag, delete_from_rag
 
 app = FastAPI(title="Document Management API")
 
@@ -22,6 +24,11 @@ app.add_middleware(
 # Schemas
 class UserCreate(BaseModel):
     email: EmailStr
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     role: Optional[str] = None
 
@@ -48,9 +55,13 @@ class RAGSearch(BaseModel):
     user_id: UUID
     top_k: int = 5
 
+class AgentQuery(BaseModel):
+    query: str
+    user_id: UUID
+
 # === USER ENDPOINTS ===
 
-@app.post("/users")
+@app.post("/users", status_code=201)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(400, "Email already exists")
@@ -74,6 +85,20 @@ def get_user(user_id: UUID, db: Session = Depends(get_db)):
     
     if not user:
         raise HTTPException(404, "User not found")
+    return user
+
+@app.patch("/users/{user_id}")
+def update_user(user_id: UUID, payload: UserUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(user, k, v)
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
     return user
 
 # === DOCUMENT ENDPOINTS ===
@@ -243,6 +268,24 @@ def search_documents(search: RAGSearch, db: Session = Depends(get_db)):
         "results": results,
         "total": len(results)
     }
+
+@app.post("/agent/query")
+async def agent_query(request: AgentQuery, db: Session = Depends(get_db)):
+    """
+    Query the AI agent about documents.
+    Agent uses RAG to search and analyze documents the user has access to.
+    """
+    from .ai_agent import run_agent
+    
+    user = db.query(User).filter(User.id == request.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    try:
+        response = await run_agent(request.user_id, user.email, request.query)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
 
 @app.get("/")
 def health_check():

@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pydantic[email]
+chromadb
+openai
+pydantic-ai
+python-fasthtml
+httpx

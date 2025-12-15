@@ -1,19 +1,10 @@
 import os
 import uuid
 from datetime import datetime
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy.pool import NullPool
-
-load_dotenv()
-
-# Database connection
-DATABASE_URL = f"postgresql+psycopg2://{os.getenv('user')}:{os.getenv('password')}@{os.getenv('host')}:{os.getenv('port')}/{os.getenv('dbname')}?sslmode=require"
-engine = create_engine(DATABASE_URL, poolclass=NullPool)
-SessionLocal = sessionmaker(bind=engine)
-Base = declarative_base()
+from sqlalchemy.orm import relationship
+from .database import Base, engine
 
 # Models
 class User(Base):
@@ -81,12 +72,3 @@ def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(engine)
     print("✓ Database tables created")
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()

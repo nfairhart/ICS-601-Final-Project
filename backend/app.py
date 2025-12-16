@@ -1,15 +1,18 @@
-"""Updated FastAPI app with PydanticAI agent integration."""
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+"""Updated FastAPI app with PDF upload and PydanticAI agent integration."""
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
+import tempfile
+import os
 
 from .database import get_db
 from .models import User, Document, DocumentVersion, DocumentPermission
 from .rag import add_to_rag, search_rag, delete_from_rag
+from .utils import process_pdf_upload
 
 app = FastAPI(title="Document Management API")
 
@@ -207,6 +210,208 @@ def list_versions(document_id: UUID, db: Session = Depends(get_db)):
     return db.query(DocumentVersion).filter(
         DocumentVersion.document_id == document_id
     ).order_by(DocumentVersion.version_number.desc()).all()
+
+# === PDF UPLOAD ENDPOINTS ===
+
+@app.post("/documents/{document_id}/upload-pdf")
+async def upload_pdf_version(
+    document_id: UUID,
+    created_by: UUID,
+    pdf_file: UploadFile = File(...),
+    change_summary: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a PDF, convert to markdown, and create a new document version.
+    
+    This endpoint:
+    1. Receives the PDF file upload
+    2. Converts it to markdown
+    3. Uploads the PDF to Supabase storage
+    4. Creates a new document version in the database
+    5. Indexes the content in RAG (background)
+    """
+    # Verify document exists
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    
+    # Verify user exists
+    user = db.query(User).filter(User.id == created_by).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        content = await pdf_file.read()
+        tmp_file.write(content)
+        tmp_path = tmp_file.name
+    
+    try:
+        # Process PDF: convert to markdown and upload to storage
+        markdown_content, pdf_url = process_pdf_upload(
+            pdf_path=tmp_path,
+            document_id=str(document_id),
+            filename=pdf_file.filename
+        )
+        
+        # Get next version number
+        latest_version = db.query(DocumentVersion).filter(
+            DocumentVersion.document_id == document_id
+        ).order_by(DocumentVersion.version_number.desc()).first()
+        
+        version_number = (latest_version.version_number + 1) if latest_version else 1
+        
+        # Create new version
+        db_version = DocumentVersion(
+            document_id=document_id,
+            created_by=created_by,
+            version_number=version_number,
+            markdown_content=markdown_content,
+            pdf_url=pdf_url,
+            change_summary=change_summary or f"Version {version_number} - PDF upload"
+        )
+        
+        db.add(db_version)
+        db.commit()
+        db.refresh(db_version)
+        
+        # Update document's current version
+        doc.current_version_id = db_version.id
+        doc.updated_at = datetime.utcnow()
+        db.commit()
+        
+        # Index in RAG (background)
+        if background_tasks:
+            background_tasks.add_task(
+                add_to_rag,
+                str(document_id),
+                str(db_version.id),
+                doc.title,
+                markdown_content
+            )
+        
+        return {
+            "message": "PDF uploaded and processed successfully",
+            "version": {
+                "id": str(db_version.id),
+                "version_number": db_version.version_number,
+                "pdf_url": pdf_url,
+                "created_at": db_version.created_at
+            }
+        }
+        
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.post("/documents/create-from-pdf")
+async def create_document_from_pdf(
+    created_by: UUID,
+    pdf_file: UploadFile = File(...),
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new document directly from a PDF upload.
+    
+    This endpoint:
+    1. Creates a new document
+    2. Uploads and processes the PDF
+    3. Creates the first version
+    4. Indexes in RAG
+    """
+    # Verify user exists
+    user = db.query(User).filter(User.id == created_by).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Use filename as title if not provided
+    if not title:
+        title = os.path.splitext(pdf_file.filename)[0]
+    
+    # Create document first
+    db_doc = Document(
+        created_by=created_by,
+        title=title,
+        description=description,
+        status="Draft"
+    )
+    db.add(db_doc)
+    db.commit()
+    db.refresh(db_doc)
+    
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        content = await pdf_file.read()
+        tmp_file.write(content)
+        tmp_path = tmp_file.name
+    
+    try:
+        # Process PDF
+        markdown_content, pdf_url = process_pdf_upload(
+            pdf_path=tmp_path,
+            document_id=str(db_doc.id),
+            filename=pdf_file.filename
+        )
+        
+        # Create first version
+        db_version = DocumentVersion(
+            document_id=db_doc.id,
+            created_by=created_by,
+            version_number=1,
+            markdown_content=markdown_content,
+            pdf_url=pdf_url,
+            change_summary="Initial version from PDF upload"
+        )
+        
+        db.add(db_version)
+        db.commit()
+        db.refresh(db_version)
+        
+        # Update document's current version
+        db_doc.current_version_id = db_version.id
+        db.commit()
+        
+        # Index in RAG (background)
+        if background_tasks:
+            background_tasks.add_task(
+                add_to_rag,
+                str(db_doc.id),
+                str(db_version.id),
+                db_doc.title,
+                markdown_content
+            )
+        
+        return {
+            "message": "Document created successfully from PDF",
+            "document": {
+                "id": str(db_doc.id),
+                "title": db_doc.title,
+                "created_at": db_doc.created_at
+            },
+            "version": {
+                "id": str(db_version.id),
+                "version_number": db_version.version_number,
+                "pdf_url": pdf_url
+            }
+        }
+        
+    except Exception as e:
+        # Rollback document creation if PDF processing fails
+        db.delete(db_doc)
+        db.commit()
+        raise HTTPException(500, f"Failed to process PDF: {str(e)}")
+        
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 # === PERMISSION ENDPOINTS ===
 

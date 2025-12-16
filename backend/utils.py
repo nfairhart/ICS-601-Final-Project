@@ -1,7 +1,7 @@
 import os
 import requests
 from dotenv import load_dotenv
-
+from markitdown import MarkItDown
 load_dotenv()
 
 def upload_pdf(file_path: str, destination_path: str) -> str:
@@ -40,7 +40,32 @@ def download_pdf(pdf_url: str, save_path: str):
     return save_path
 
 def parse_pdf_to_markdown(pdf_path: str) -> str:
-    """Parse PDF to markdown (placeholder - implement with your preferred parser)"""
-    # TODO: Implement with pymupdf, pdfplumber, or similar
-    # For now, return placeholder
-    return f"# Parsed content from {pdf_path}\n\nImplement PDF parsing here."
+    """Parse PDF to markdown using MarkItDown"""
+    try:
+        md = MarkItDown()
+        result = md.convert(pdf_path)
+        return result.text_content
+    except Exception as e:
+        raise Exception(f"Failed to convert PDF to markdown: {str(e)}")
+
+def process_pdf_upload(pdf_path: str, document_id: str, filename: str) -> tuple[str, str]:
+    """
+    Process a PDF file: convert to markdown and upload to Supabase storage.
+
+    Args:
+        pdf_path: Local path to the PDF file
+        document_id: UUID of the document
+        filename: Original filename of the PDF
+
+    Returns:
+        tuple: (markdown_content, pdf_url)
+    """
+    # Convert PDF to markdown
+    markdown_content = parse_pdf_to_markdown(pdf_path)
+
+    # Upload PDF to Supabase storage
+    # Use document_id as folder to organize PDFs
+    destination_path = f"{document_id}/{filename}"
+    pdf_url = upload_pdf(pdf_path, destination_path)
+
+    return markdown_content, pdf_url

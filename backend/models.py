@@ -26,8 +26,8 @@ class Document(Base):
     __tablename__ = 'documents'
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-    current_version_id = Column(UUID(as_uuid=True), ForeignKey('document_versions.id', use_alter=True, name='fk_current_version'))
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    current_version_id = Column(UUID(as_uuid=True), ForeignKey('document_versions.id', ondelete='CASCADE', use_alter=True, name='fk_current_version'))
     title = Column(String, nullable=False)
     status = Column(String, default="Draft")
     description = Column(Text)
@@ -43,8 +43,8 @@ class DocumentVersion(Base):
     __tablename__ = 'document_versions'
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id'), nullable=False)
-    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='CASCADE'), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     version_number = Column(Integer, nullable=False)
     markdown_content = Column(Text)
     pdf_url = Column(String)
@@ -59,8 +59,8 @@ class DocumentPermission(Base):
     __tablename__ = 'document_permissions'
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id'), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     permission_type = Column(String, nullable=False)  # 'read', 'write', 'admin'
     granted_at = Column(DateTime, default=datetime.utcnow)
     

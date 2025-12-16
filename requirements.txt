@@ -9,3 +9,6 @@ openai
 pydantic-ai
 python-fasthtml
 httpx
+markitdown
+reportlab
+requests

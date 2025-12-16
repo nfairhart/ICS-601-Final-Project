@@ -1,357 +1,407 @@
 from fasthtml.common import *
-from frontend.lib.api import http_client
-from frontend.components.navbar import navbar
-from datetime import datetime
+import httpx
+from typing import Optional
 
+API_BASE = "http://localhost:8000"
 
-def _safe_json(resp):
+def users_page_layout(content):
+    """Common layout for users pages"""
+    return Html(
+        Head(
+            Title("Users - Document Control System"),
+            Style("""
+                body {
+                    font-family: Arial, sans-serif;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background: #f5f5f5;
+                }
+                .header {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin-bottom: 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .btn {
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background: #007bff;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+                .btn:hover {
+                    background: #0056b3;
+                }
+                .btn-secondary {
+                    background: #6c757d;
+                }
+                .btn-secondary:hover {
+                    background: #545b62;
+                }
+                .btn-danger {
+                    background: #dc3545;
+                }
+                .btn-danger:hover {
+                    background: #c82333;
+                }
+                .content {
+                    background: white;
+                    padding: 30px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                .user-list {
+                    list-style: none;
+                    padding: 0;
+                }
+                .user-item {
+                    padding: 15px;
+                    border-bottom: 1px solid #e9ecef;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .user-item:last-child {
+                    border-bottom: none;
+                }
+                .user-info {
+                    flex-grow: 1;
+                }
+                .user-info h3 {
+                    margin: 0 0 5px 0;
+                    color: #333;
+                }
+                .user-info p {
+                    margin: 0;
+                    color: #666;
+                    font-size: 14px;
+                }
+                .user-actions {
+                    display: flex;
+                    gap: 10px;
+                }
+                .form-group {
+                    margin-bottom: 20px;
+                }
+                .form-group label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                    color: #333;
+                }
+                .form-group input {
+                    width: 100%;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    box-sizing: border-box;
+                }
+                .form-group input:focus {
+                    outline: none;
+                    border-color: #007bff;
+                }
+                .error {
+                    color: #dc3545;
+                    padding: 10px;
+                    background: #f8d7da;
+                    border-radius: 4px;
+                    margin-bottom: 20px;
+                }
+                .success {
+                    color: #155724;
+                    padding: 10px;
+                    background: #d4edda;
+                    border-radius: 4px;
+                    margin-bottom: 20px;
+                }
+                .empty-state {
+                    text-align: center;
+                    padding: 40px;
+                    color: #666;
+                }
+                .user-details {
+                    margin-top: 20px;
+                }
+                .detail-section {
+                    margin-bottom: 30px;
+                }
+                .detail-section h3 {
+                    color: #333;
+                    border-bottom: 2px solid #007bff;
+                    padding-bottom: 10px;
+                }
+                .detail-row {
+                    display: flex;
+                    padding: 10px 0;
+                    border-bottom: 1px solid #e9ecef;
+                }
+                .detail-label {
+                    font-weight: bold;
+                    width: 150px;
+                    color: #555;
+                }
+                .detail-value {
+                    color: #333;
+                }
+                .badge {
+                    display: inline-block;
+                    padding: 4px 8px;
+                    background: #007bff;
+                    color: white;
+                    border-radius: 4px;
+                    font-size: 12px;
+                }
+            """)
+        ),
+        Body(content)
+    )
+
+async def get_users():
+    """Fetch all users from API"""
     try:
-        return resp.json()
-    except Exception:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{API_BASE}/users")
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        print(f"Error fetching users: {e}")
+        return []
+
+async def get_user_by_id(user_id: str):
+    """Fetch a specific user by ID"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{API_BASE}/users/{user_id}")
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        print(f"Error fetching user: {e}")
         return None
 
+async def create_user(email: str, full_name: Optional[str] = None, role: Optional[str] = None):
+    """Create a new user"""
+    try:
+        async with httpx.AsyncClient() as client:
+            data = {"email": email}
+            if full_name:
+                data["full_name"] = full_name
+            if role:
+                data["role"] = role
 
-def register(rt):
-    @rt('/users')
-    def get():
-        try:
-            resp = http_client.get('/users')
-            data = _safe_json(resp) if resp.status_code == 200 else None
-            users = data or []
-        except Exception:
-            users = []
+            response = await client.post(f"{API_BASE}/users", json=data)
+            response.raise_for_status()
+            return response.json(), None
+    except httpx.HTTPStatusError as e:
+        return None, f"Error: {e.response.text}"
+    except Exception as e:
+        return None, f"Error creating user: {str(e)}"
 
-        return Div(
-            navbar("users"),
-            Titled(
-                "👥 User Management",
-                
-                # Stats
+async def update_user(user_id: str, email: Optional[str] = None,
+                     full_name: Optional[str] = None, role: Optional[str] = None):
+    """Update a user"""
+    try:
+        async with httpx.AsyncClient() as client:
+            data = {}
+            if email:
+                data["email"] = email
+            if full_name:
+                data["full_name"] = full_name
+            if role:
+                data["role"] = role
+
+            response = await client.patch(f"{API_BASE}/users/{user_id}", json=data)
+            response.raise_for_status()
+            return response.json(), None
+    except httpx.HTTPStatusError as e:
+        return None, f"Error: {e.response.text}"
+    except Exception as e:
+        return None, f"Error updating user: {str(e)}"
+
+def render_users_list(users, error=None, success=None):
+    """Render the users list view"""
+    return users_page_layout(
+        Div(
+            Div(
+                H1("Users"),
                 Div(
-                    H3("User Statistics"),
-                    Div(
-                        Div(
-                            H2(str(len(users)), style="margin: 0; color: #9c27b0;"),
-                            P("Total Users", style="margin: 0.5rem 0 0 0; color: #666;")
-                        ),
-                        Div(
-                            H2(str(len([u for u in users if u.get('role') == 'admin'])), style="margin: 0; color: #dc3545;"),
-                            P("Admins", style="margin: 0.5rem 0 0 0; color: #666;")
-                        ),
-                        Div(
-                            H2(str(len([u for u in users if u.get('role') == 'user'])), style="margin: 0; color: #28a745;"),
-                            P("Regular Users", style="margin: 0.5rem 0 0 0; color: #666;")
-                        ),
-                        cls="stats-grid"
-                    ),
-                    cls="card"
+                    A("Back to Home", href="/", cls="btn btn-secondary"),
+                    A("Create New User", href="/users/create", cls="btn"),
                 ),
-                
-                # Create User Form
-                Div(
-                    H3("➕ Create New User"),
-                    Form(
+                cls="header"
+            ),
+
+            Div(
+                error and Div(error, cls="error") or None,
+                success and Div(success, cls="success") or None,
+
+                H2(f"All Users ({len(users)})"),
+
+                users and Ul(
+                    *[Li(
                         Div(
-                            Label("Email:", For="email"),
-                            Input(
-                                type="email", 
-                                name="email", 
-                                id="email", 
-                                required=True, 
-                                placeholder="user@example.com"
+                            Div(
+                                H3(user.get("full_name") or user.get("email")),
+                                P(f"Email: {user.get('email')}"),
+                                P(f"Role: {user.get('role') or 'N/A'}"),
+                                cls="user-info"
                             ),
-                            cls="form-row"
-                        ),
-                        Div(
-                            Label("Full Name:", For="full_name"),
-                            Input(
-                                type="text", 
-                                name="full_name", 
-                                id="full_name", 
-                                placeholder="John Doe"
+                            Div(
+                                A("View Details", href=f"/users/{user['id']}", cls="btn"),
+                                A("Edit", href=f"/users/{user['id']}/edit", cls="btn btn-secondary"),
+                                cls="user-actions"
                             ),
-                            cls="form-row"
-                        ),
-                        Div(
-                            Label("Role:", For="role"),
-                            Select(
-                                Option("User", value="user", selected=True),
-                                Option("Admin", value="admin"),
-                                Option("Manager", value="manager"),
-                                name="role", 
-                                id="role"
-                            ),
-                            cls="form-row"
-                        ),
-                        Button("Create User 🚀", type="submit"),
-                        hx_post="/users/create",
-                        hx_target="#users-list",
-                        hx_swap="outerHTML"
-                    ),
-                    cls="card"
+                            cls="user-item"
+                        )
+                    ) for user in users],
+                    cls="user-list"
+                ) or Div(
+                    P("No users found."),
+                    A("Create your first user", href="/users/create", cls="btn"),
+                    cls="empty-state"
                 ),
-                
-                # Users List
-                Div(
-                    H3("📋 Existing Users"),
+                cls="content"
+            )
+        )
+    )
+
+def render_user_form(title, action, user=None, error=None):
+    """Render user creation/edit form"""
+    return users_page_layout(
+        Div(
+            Div(
+                H1(title),
+                A("Back to Users", href="/users", cls="btn btn-secondary"),
+                cls="header"
+            ),
+
+            Div(
+                error and Div(error, cls="error") or None,
+
+                Form(
                     Div(
-                        *[user_card(u) for u in users] if users else P("No users found. Create one above!"),
-                        id="users-list"
-                    )
+                        Label("Email (required)", _for="email"),
+                        Input(
+                            type="email",
+                            name="email",
+                            id="email",
+                            value=user.get("email") if user else "",
+                            required=True
+                        ),
+                        cls="form-group"
+                    ),
+
+                    Div(
+                        Label("Full Name", _for="full_name"),
+                        Input(
+                            type="text",
+                            name="full_name",
+                            id="full_name",
+                            value=user.get("full_name") if user else ""
+                        ),
+                        cls="form-group"
+                    ),
+
+                    Div(
+                        Label("Role", _for="role"),
+                        Input(
+                            type="text",
+                            name="role",
+                            id="role",
+                            value=user.get("role") if user else "",
+                            placeholder="e.g., editor, admin, viewer"
+                        ),
+                        cls="form-group"
+                    ),
+
+                    Div(
+                        Button("Cancel", type="button", onclick="window.location.href='/users'", cls="btn btn-secondary"),
+                        Button("Save User", type="submit", cls="btn"),
+                        style="display: flex; gap: 10px; justify-content: flex-end;"
+                    ),
+
+                    method="POST",
+                    action=action
+                ),
+                cls="content"
+            )
+        )
+    )
+
+def render_user_details(user, error=None):
+    """Render user details view"""
+    if not user:
+        return users_page_layout(
+            Div(
+                Div(
+                    H1("User Not Found"),
+                    A("Back to Users", href="/users", cls="btn btn-secondary"),
+                    cls="header"
+                ),
+                Div(
+                    P("The requested user could not be found."),
+                    cls="content"
                 )
             )
         )
 
-    @rt('/users/create')
-    async def post(email: str, full_name: str = None, role: str = 'user'):
-        try:
-            resp = http_client.post('/users', json={
-                "email": email, 
-                "full_name": full_name, 
-                "role": role
-            })
-            
-            if resp.status_code in (200, 201):
-                users_resp = http_client.get('/users')
-                users = _safe_json(users_resp) if users_resp.status_code == 200 else []
-                
-                return Div(
-                    Div(
-                        P("✅ User created successfully!", style="color: #28a745; font-weight: 600;"),
-                        cls="card"
-                    ),
-                    *[user_card(u) for u in users],
-                    id="users-list"
-                )
-            else:
-                data = _safe_json(resp) or {}
-                detail = data.get('detail') or (resp.text.strip() or 'Unknown error')
-                return Div(
-                    P(f"❌ Error: {detail}", style="color: #dc3545; font-weight: 600;"),
-                    id="users-list"
-                )
-        except Exception as e:
-            return Div(
-                P(f"❌ Error connecting to API: {str(e)}", style="color: #dc3545; font-weight: 600;"),
-                id="users-list"
-            )
-
-    @rt('/users/{user_id}/edit')
-    def get(user_id: str):
-        try:
-            resp = http_client.get(f'/users/{user_id}')
-            if resp.status_code != 200:
-                return P('User not found')
-            user = resp.json()
-            
-            return Div(
-                H4('✏️ Edit User'),
-                Form(
-                    Input(type='hidden', name='user_id', value=user_id),
-                    Div(
-                        Label('Email:', For=f'email-{user_id}'),
-                        Input(
-                            type='email', 
-                            name='email', 
-                            id=f'email-{user_id}', 
-                            value=user['email'], 
-                            required=True
-                        ),
-                        cls="form-row"
-                    ),
-                    Div(
-                        Label('Full Name:', For=f'full_name-{user_id}'),
-                        Input(
-                            type='text', 
-                            name='full_name', 
-                            id=f'full_name-{user_id}', 
-                            value=user.get('full_name', '')
-                        ),
-                        cls="form-row"
-                    ),
-                    Div(
-                        Label('Role:', For=f'role-{user_id}'),
-                        Select(
-                            Option('User', value='user', selected=user.get('role') == 'user'),
-                            Option('Admin', value='admin', selected=user.get('role') == 'admin'),
-                            Option('Manager', value='manager', selected=user.get('role') == 'manager'),
-                            name='role', 
-                            id=f'role-{user_id}'
-                        ),
-                        cls="form-row"
-                    ),
-                    Div(
-                        Button('💾 Save Changes', type='submit'),
-                        Button(
-                            '❌ Cancel',
-                            hx_get=f"/users/{user_id}/card",
-                            hx_target=f"#user-{user_id}",
-                            hx_swap='outerHTML',
-                            type='button',
-                            style="background: #6c757d;"
-                        ),
-                        cls="btn-group"
-                    ),
-                    hx_patch=f"/users/{user_id}/update",
-                    hx_target=f"#user-{user_id}",
-                    hx_swap='outerHTML'
-                ),
-                id=f'user-{user_id}',
-                cls="card",
-                style='border-left: 4px solid #ff9800;'
-            )
-        except Exception as e:
-            return P(f'Error: {str(e)}')
-
-    @rt('/users/{user_id}/update')
-    def patch(user_id: str, email: str, full_name: str = None, role: str = 'user'):
-        try:
-            resp = http_client.patch(f'/users/{user_id}', json={
-                "email": email,
-                "full_name": full_name,
-                "role": role
-            })
-            
-            if resp.status_code == 200:
-                data = _safe_json(resp)
-                if data:
-                    return user_card(data)
-                return P("Updated, but server returned no JSON.", style='color: #ffc107;')
-            
-            data = _safe_json(resp) or {}
-            return P(f"Error: {data.get('detail', 'Update failed')}", style='color: #dc3545;')
-        except Exception as e:
-            return P(f'Error: {str(e)}', style='color: #dc3545;')
-
-    @rt('/users/{user_id}/card')
-    def get(user_id: str):
-        try:
-            resp = http_client.get(f'/users/{user_id}')
-            if resp.status_code == 200:
-                return user_card(resp.json())
-            return P('User not found')
-        except Exception as e:
-            return P(f'Error: {str(e)}')
-
-    @rt('/users/{user_id}/documents')
-    def get(user_id: str):
-        try:
-            resp = http_client.get(f'/users/{user_id}')
-            if resp.status_code != 200:
-                return Titled('Error', P('User not found'))
-            
-            user = resp.json()
-            permissions = user.get('permissions', [])
-            
-            # Get documents from permissions
-            doc_ids = [p['document_id'] for p in permissions]
-            docs = []
-            for doc_id in doc_ids:
-                try:
-                    doc_resp = http_client.get(f'/documents/{doc_id}')
-                    if doc_resp.status_code == 200:
-                        docs.append(doc_resp.json())
-                except:
-                    pass
-            
-            return Div(
-                navbar('users'),
-                Titled(
-                    f"📄 Documents for {user.get('full_name', user['email'])}",
-                    Div(
-                        H3(f"Accessible Documents ({len(docs)})"),
-                        Div(
-                            *[
-                                Div(
-                                    H4(doc['title']),
-                                    P(Strong('Status: '), 
-                                      Span(doc.get('status', 'Unknown'), cls=f"badge badge-{doc.get('status', '').lower()}")
-                                    ),
-                                    P(Strong('Created: '), _fmt_date(doc.get('created_at'))),
-                                    Button(
-                                        'View Document',
-                                        onclick=f"window.location='/documents/{doc['id']}'"
-                                    ),
-                                    cls="card",
-                                    style='border-left: 4px solid #28a745;'
-                                ) for doc in docs
-                            ] if docs else P('No documents accessible to this user'),
-                        ),
-                        cls="card"
-                    ),
-                    Div(
-                        A('← Back to Users', href='/users', style="text-decoration: none; color: #0066cc; font-weight: 600;"),
-                        style='margin-top: 2rem;'
-                    )
-                )
-            )
-        except Exception as e:
-            return Titled('Error', P(f'Error: {str(e)}'))
-
-
-def user_card(user: dict):
-    created = _parse_dt(user.get('created_at'))
-    updated = _parse_dt(user.get('updated_at'))
-    role = (user.get('role') or 'user').upper()
-    role_color = '#dc3545' if role == 'ADMIN' else '#28a745' if role == 'MANAGER' else '#0066cc'
-    
-    return Div(
+    return users_page_layout(
         Div(
-            H4(user.get('full_name') or 'No Name', style="margin-bottom: 0.5rem;"),
-            P(
-                Strong("Email: "), user['email'],
-                style="margin: 0.25rem 0;"
-            ),
-            P(
-                Strong("Role: "),
-                Span(role, style=f"color: {role_color}; font-weight: 600;"),
-                style="margin: 0.25rem 0;"
-            ),
-            P(
-                Strong("Created: "),
-                created.strftime('%Y-%m-%d %H:%M') if created else '—',
-                style="margin: 0.25rem 0;"
-            ),
-            Details(
-                Summary("👁️ More Details"),
-                P(Strong("ID: "), user['id'], style="font-size: 0.9em; color: #666;"),
-                P(Strong("Updated: "), updated.strftime('%Y-%m-%d %H:%M') if updated else '—', style="font-size: 0.9em; color: #666;"),
+            Div(
+                H1(user.get("full_name") or user.get("email")),
                 Div(
-                    Button(
-                        "✏️ Edit",
-                        hx_get=f"/users/{user['id']}/edit",
-                        hx_target=f"#user-{user['id']}",
-                        hx_swap="outerHTML"
-                    ),
-                    Button(
-                        "📄 View Documents",
-                        onclick=f"window.location='/users/{user['id']}/documents'",
-                        style="background: #28a745;"
-                    ),
-                    cls="btn-group"
+                    A("Back to Users", href="/users", cls="btn btn-secondary"),
+                    A("Edit User", href=f"/users/{user['id']}/edit", cls="btn"),
                 ),
-                style="margin-top: 1rem;"
+                cls="header"
             ),
-            id=f"user-{user['id']}"
-        ),
-        cls="card",
-        style="border-left: 4px solid #9c27b0;"
+
+            Div(
+                error and Div(error, cls="error") or None,
+
+                Div(
+                    H2("User Information"),
+                    Div(
+                        Div(Span("ID:", cls="detail-label"), Span(user.get("id"), cls="detail-value"), cls="detail-row"),
+                        Div(Span("Email:", cls="detail-label"), Span(user.get("email"), cls="detail-value"), cls="detail-row"),
+                        Div(Span("Full Name:", cls="detail-label"), Span(user.get("full_name") or "N/A", cls="detail-value"), cls="detail-row"),
+                        Div(Span("Role:", cls="detail-label"), Span(user.get("role") or "N/A", cls="detail-value"), cls="detail-row"),
+                        Div(Span("Created At:", cls="detail-label"), Span(user.get("created_at"), cls="detail-value"), cls="detail-row"),
+                        Div(Span("Updated At:", cls="detail-label"), Span(user.get("updated_at"), cls="detail-value"), cls="detail-row"),
+                    ),
+                    cls="detail-section"
+                ),
+
+                Div(
+                    H3("Documents Created"),
+                    user.get("documents") and len(user.get("documents")) > 0 and Ul(
+                        *[Li(
+                            f"{doc.get('title')} ({doc.get('status')})"
+                        ) for doc in user.get("documents", [])]
+                    ) or P("No documents created yet.", style="color: #666;"),
+                    cls="detail-section"
+                ),
+
+                Div(
+                    H3("Document Permissions"),
+                    user.get("permissions") and len(user.get("permissions")) > 0 and Ul(
+                        *[Li(
+                            Span(f"Document ID: {perm.get('document_id')}", style="margin-right: 10px;"),
+                            Span(perm.get('permission_type'), cls="badge")
+                        ) for perm in user.get("permissions", [])]
+                    ) or P("No permissions granted yet.", style="color: #666;"),
+                    cls="detail-section"
+                ),
+
+                cls="content"
+            )
+        )
     )
-
-
-def _parse_dt(val: str | None):
-    if not val:
-        return None
-    try:
-        return datetime.fromisoformat(val.replace('Z', '+00:00'))
-    except Exception:
-        return None
-
-
-def _fmt_date(val: str | None):
-    if not val:
-        return '—'
-    try:
-        return datetime.fromisoformat(val.replace('Z', '+00:00')).strftime('%Y-%m-%d')
-    except Exception:
-        return '—'

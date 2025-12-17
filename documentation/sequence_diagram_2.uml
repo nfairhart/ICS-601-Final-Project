@@ -1,0 +1,13 @@
+@startuml
+actor User
+participant Frontend
+participant Backend
+participant VectorStore
+
+User -> Frontend: Search Documents
+Frontend -> Backend: POST /search
+Backend -> VectorStore: Query Embeddings
+VectorStore --> Backend: Relevant Documents
+Backend --> Frontend: Search Results
+Frontend --> User: Display Results
+@enduml

@@ -1,0 +1,30 @@
+@startuml
+
+class User {
+  +UUID id
+  +string email
+  +string full_name
+  +string role
+  +datetime created_at
+  +datetime updated_at
+}
+
+class Document {
+  +UUID id
+  +string title
+  +string description
+  +UUID created_by
+  +datetime created_at
+  +datetime updated_at
+}
+
+class Permission {
+  +UUID id
+  +UUID document_id
+  +UUID user_id
+  +string permission_type
+}
+
+User "1" -- "*" Document : creates
+Document "1" -- "*" Permission : has
+@enduml

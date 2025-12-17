@@ -20,7 +20,7 @@ from .schemas import (
     VersionCreate,
     PermissionCreate, PermissionUpdate, PermissionType,
     RAGSearch,
-    AgentQuery,
+    AgentQuery, AgentResponse,
 )
 from .services import (
     UserService,
@@ -409,7 +409,7 @@ def search_documents(
         "user_email": user.email
     }
 
-@app.post("/agent/query")
+@app.post("/agent/query", response_model=AgentResponse)
 async def agent_query(
     request: AgentQuery,
     current_user_id: UUID = Depends(get_current_user_id),
@@ -428,10 +428,7 @@ async def agent_query(
 
     try:
         response = await run_agent(current_user_id, user.email, request.query)
-        return {
-            "response": response,
-            "user_email": user.email
-        }
+        return AgentResponse(response=response, user_email=user.email)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
 

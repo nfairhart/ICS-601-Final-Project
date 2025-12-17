@@ -1,5 +1,5 @@
 """Updated FastAPI app with PDF upload and PydanticAI agent integration."""
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel, EmailStr
@@ -216,10 +216,10 @@ def list_versions(document_id: UUID, db: Session = Depends(get_db)):
 @app.post("/documents/{document_id}/upload-pdf")
 async def upload_pdf_version(
     document_id: UUID,
-    created_by: UUID,
+    background_tasks: BackgroundTasks,
+    created_by: UUID = Form(...),
     pdf_file: UploadFile = File(...),
-    change_summary: Optional[str] = None,
-    background_tasks: BackgroundTasks = None,
+    change_summary: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -283,14 +283,13 @@ async def upload_pdf_version(
         db.commit()
         
         # Index in RAG (background)
-        if background_tasks:
-            background_tasks.add_task(
-                add_to_rag,
-                str(document_id),
-                str(db_version.id),
-                doc.title,
-                markdown_content
-            )
+        background_tasks.add_task(
+            add_to_rag,
+            str(document_id),
+            str(db_version.id),
+            doc.title,
+            markdown_content
+        )
         
         return {
             "message": "PDF uploaded and processed successfully",
@@ -310,11 +309,11 @@ async def upload_pdf_version(
 
 @app.post("/documents/create-from-pdf")
 async def create_document_from_pdf(
-    created_by: UUID,
+    background_tasks: BackgroundTasks,
+    created_by: UUID = Form(...),
     pdf_file: UploadFile = File(...),
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    background_tasks: BackgroundTasks = None,
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -379,14 +378,13 @@ async def create_document_from_pdf(
         db.commit()
         
         # Index in RAG (background)
-        if background_tasks:
-            background_tasks.add_task(
-                add_to_rag,
-                str(db_doc.id),
-                str(db_version.id),
-                db_doc.title,
-                markdown_content
-            )
+        background_tasks.add_task(
+            add_to_rag,
+            str(db_doc.id),
+            str(db_version.id),
+            db_doc.title,
+            markdown_content
+        )
         
         return {
             "message": "Document created successfully from PDF",

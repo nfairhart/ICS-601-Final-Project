@@ -4,6 +4,21 @@ from pages.users import (
     get_users, get_user_by_id, create_user, update_user,
     render_users_list, render_user_form, render_user_details
 )
+from pages.agent import (
+    get_users_for_select as get_users_for_agent, query_agent,
+    render_agent_page, render_agent_response
+)
+from pages.search import (
+    get_users_for_select as get_users_for_search, search_documents,
+    render_search_page
+)
+from pages.upload import (
+    get_users_for_select as get_users_for_upload,
+    get_documents_for_select,
+    upload_pdf_to_document,
+    create_document_from_pdf,
+    render_upload_page
+)
 
 # Create FastHTML app
 app, rt = fast_app()
@@ -173,63 +188,143 @@ def get():
     )
 
 @rt("/upload")
-def get():
-    """PDF upload page placeholder"""
-    return Html(
-        Head(Title("Upload PDF")),
-        Body(
-            H1("Upload PDF"),
-            P("PDF upload functionality will be implemented here"),
-            A("Back to Home", href="/"),
-            Hr(),
-            P("Features to implement:"),
-            Ul(
-                Li("Upload PDF to existing document (POST /documents/{id}/upload-pdf)"),
-                Li("Create document from PDF (POST /documents/create-from-pdf)"),
-                Li("Show upload progress"),
-                Li("Display version information")
-            )
+async def get(mode: str = "new"):
+    """PDF upload page"""
+    users = await get_users_for_upload()
+    documents = await get_documents_for_select()
+    return render_upload_page(users=users, documents=documents, mode=mode)
+
+@rt("/upload/new")
+async def post(pdf_file: UploadFile, created_by: str, title: str = "", description: str = ""):
+    """Handle new document creation from PDF"""
+    users = await get_users_for_upload()
+    documents = await get_documents_for_select()
+
+    # Create document from PDF
+    result, error = await create_document_from_pdf(
+        pdf_file=pdf_file,
+        created_by=created_by,
+        title=title if title else None,
+        description=description if description else None
+    )
+
+    if error:
+        return render_upload_page(
+            users=users,
+            documents=documents,
+            mode="new",
+            selected_user_id=created_by,
+            error=error
         )
+
+    return render_upload_page(
+        users=users,
+        documents=documents,
+        mode="new",
+        success=result.get("message", "Document created successfully!"),
+        result=result
+    )
+
+@rt("/upload/existing")
+async def post(pdf_file: UploadFile, document_id: str, created_by: str, change_summary: str = ""):
+    """Handle PDF upload to existing document"""
+    users = await get_users_for_upload()
+    documents = await get_documents_for_select()
+
+    # Upload PDF to document
+    result, error = await upload_pdf_to_document(
+        document_id=document_id,
+        pdf_file=pdf_file,
+        created_by=created_by,
+        change_summary=change_summary if change_summary else None
+    )
+
+    if error:
+        return render_upload_page(
+            users=users,
+            documents=documents,
+            mode="existing",
+            selected_user_id=created_by,
+            selected_document_id=document_id,
+            error=error
+        )
+
+    return render_upload_page(
+        users=users,
+        documents=documents,
+        mode="existing",
+        success=result.get("message", "PDF uploaded successfully!"),
+        result=result
     )
 
 @rt("/search")
-def get():
-    """Search page placeholder"""
-    return Html(
-        Head(Title("Search Documents")),
-        Body(
-            H1("Search Documents"),
-            P("RAG-based search will be implemented here"),
-            A("Back to Home", href="/"),
-            Hr(),
-            P("Features to implement:"),
-            Ul(
-                Li("Search form with query input (POST /search)"),
-                Li("Display search results with relevance scores"),
-                Li("Link to source documents"),
-                Li("Show content snippets")
-            )
+async def get():
+    """Search page"""
+    users = await get_users_for_search()
+    return render_search_page(users)
+
+@rt("/search")
+async def post(query: str, user_id: str, top_k: int = 5):
+    """Handle search query"""
+    users = await get_users_for_search()
+
+    # Perform search
+    results, error = await search_documents(query, user_id, top_k)
+
+    if error:
+        return render_search_page(
+            users=users,
+            selected_user_id=user_id,
+            search_query=query,
+            top_k=top_k,
+            error=error
         )
+
+    return render_search_page(
+        users=users,
+        selected_user_id=user_id,
+        search_query=query,
+        top_k=top_k,
+        search_results=results
     )
 
 @rt("/agent")
-def get():
-    """AI Agent query page placeholder"""
-    return Html(
-        Head(Title("AI Agent")),
-        Body(
-            H1("AI Agent"),
-            P("AI-powered document queries will be implemented here"),
-            A("Back to Home", href="/"),
-            Hr(),
-            P("Features to implement:"),
-            Ul(
-                Li("Query input form (POST /agent/query)"),
-                Li("Display AI responses"),
-                Li("Show referenced documents"),
-                Li("Chat-like interface")
-            )
+async def get(user_id: str = ""):
+    """AI Agent query page"""
+    users = await get_users_for_agent()
+    return render_agent_page(users, selected_user_id=user_id if user_id else None)
+
+@rt("/agent/query")
+async def post(query: str, user_id: str):
+    """Handle AI agent query"""
+    users = await get_users_for_agent()
+
+    # Initialize chat history with user's query
+    chat_history = [
+        {"role": "user", "content": query}
+    ]
+
+    # Query the agent
+    response, error = await query_agent(query, user_id)
+
+    if error:
+        return render_agent_response(
+            users=users,
+            user_id=user_id,
+            chat_history=chat_history,
+            error=error
         )
+
+    # Add agent's response to chat history
+    chat_history.append({
+        "role": "agent",
+        "content": response.get("response", "No response received")
+    })
+
+    return render_agent_response(
+        users=users,
+        user_id=user_id,
+        chat_history=chat_history
     )
 
 @rt("/users")

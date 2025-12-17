@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import chromadb
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 from typing import Optional
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,23 +27,148 @@ def get_collection():
         embedding_function=embedding_fn
     )
 
+def chunk_by_markdown_sections(text: str, max_chars: int = 2000) -> list[dict]:
+    """
+    Split markdown text by paragraphs into semantic chunks.
+    Preserves markdown headings as context when they precede paragraphs.
+    Uses character count as rough approximation (typically ~4 chars per token).
+
+    Args:
+        text: Markdown text to chunk
+        max_chars: Maximum characters per chunk (default 2000 ≈ 500 tokens)
+
+    Returns:
+        List of dicts with 'text' and 'section_title'
+    """
+    chunks = []
+
+    # Split text into paragraphs (separated by double newlines)
+    paragraphs = text.split('\n\n')
+
+    current_chunk = ""
+    current_heading = None
+
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+
+        # Check if this paragraph is a heading
+        heading_match = re.match(r'^(#{1,6}\s+.+)$', para, re.MULTILINE)
+
+        if heading_match:
+            # Save previous chunk if it exists
+            if current_chunk.strip():
+                chunks.append({
+                    'text': current_chunk.strip(),
+                    'section_title': current_heading
+                })
+                current_chunk = ""
+
+            # Update current heading
+            current_heading = para
+            # Include heading in the next chunk
+            current_chunk = para + "\n\n"
+        else:
+            # Regular paragraph
+            potential_chunk = current_chunk + para + "\n\n"
+
+            # Check if adding this paragraph would exceed max_chars
+            if len(potential_chunk) > max_chars and current_chunk.strip():
+                # Save current chunk and start new one
+                chunks.append({
+                    'text': current_chunk.strip(),
+                    'section_title': current_heading
+                })
+                # Start new chunk with heading (if exists) and current paragraph
+                if current_heading:
+                    current_chunk = current_heading + "\n\n" + para + "\n\n"
+                else:
+                    current_chunk = para + "\n\n"
+            else:
+                # Add paragraph to current chunk
+                current_chunk = potential_chunk
+
+    # Don't forget the last chunk
+    if current_chunk.strip():
+        chunks.append({
+            'text': current_chunk.strip(),
+            'section_title': current_heading
+        })
+
+    return chunks
+
+def _split_large_section(text: str, title: Optional[str], max_chars: int) -> list[dict]:
+    """
+    DEPRECATED: Kept for backward compatibility.
+    Split text if it exceeds max_chars by paragraphs, otherwise return as single chunk.
+    """
+    if len(text) <= max_chars:
+        return [{
+            'text': text,
+            'section_title': title
+        }]
+
+    # If section is too large, split by paragraphs
+    chunks = []
+    paragraphs = text.split('\n\n')
+    current_chunk = ""
+
+    for para in paragraphs:
+        if len(current_chunk) + len(para) + 2 > max_chars:
+            if current_chunk:
+                chunks.append({
+                    'text': current_chunk.strip(),
+                    'section_title': title
+                })
+            current_chunk = para + "\n\n"
+        else:
+            current_chunk += para + "\n\n"
+
+    # Add remaining chunk
+    if current_chunk.strip():
+        chunks.append({
+            'text': current_chunk.strip(),
+            'section_title': title
+        })
+
+    return chunks
+
 def add_to_rag(document_id: str, version_id: str, title: str, content: str):
-    """Add document version to RAG"""
+    """
+    Add document version to RAG, splitting into chunks if needed.
+    Each chunk is stored as a separate embedding with a chunk index.
+    """
     collection = get_collection()
-    
-    embedding_id = f"{document_id}_{version_id}"
-    
-    collection.upsert(
-        ids=[embedding_id],
-        documents=[content],
-        metadatas=[{
+
+    # Split content into chunks by markdown sections
+    chunks = chunk_by_markdown_sections(content)
+
+    # Prepare batch data
+    ids = []
+    documents = []
+    metadatas = []
+
+    for i, chunk in enumerate(chunks):
+        chunk_id = f"{document_id}_{version_id}_chunk{i}"
+        ids.append(chunk_id)
+        documents.append(chunk['text'])
+        metadatas.append({
             "document_id": document_id,
             "version_id": version_id,
-            "title": title
-        }]
+            "title": title,
+            "chunk_index": i,
+            "section_title": chunk.get('section_title', '')
+        })
+
+    # Upsert all chunks at once
+    collection.upsert(
+        ids=ids,
+        documents=documents,
+        metadatas=metadatas
     )
-    
-    return embedding_id
+
+    return f"{document_id}_{version_id} ({len(chunks)} chunks)"
 
 def search_rag(
     query: str, 
@@ -88,7 +214,7 @@ def search_rag(
                 "version_id": metadata['version_id'],
                 "title": metadata['title'],
                 "content": results['documents'][0][i],
-                "relevance_score": relevance  # ✅ Fixed field name
+                "score": relevance  # Changed from relevance_score to score to match API spec
             })
     
     return formatted
@@ -96,43 +222,68 @@ def search_rag(
 def get_document_content(document_id: str, version_id: Optional[str] = None) -> Optional[dict]:
     """
     Retrieve full content of a specific document version from RAG.
-    
+    Reconstructs content from all chunks in order.
+
     Args:
         document_id: The document ID
         version_id: Optional specific version ID. If None, gets latest.
-    
+
     Returns:
         Dictionary with content and metadata, or None if not found
     """
     collection = get_collection()
-    
+
     if version_id:
-        embedding_id = f"{document_id}_{version_id}"
-        results = collection.get(ids=[embedding_id])
+        # Get all chunks for this version
+        results = collection.get(where={
+            "$and": [
+                {"document_id": document_id},
+                {"version_id": version_id}
+            ]
+        })
     else:
-        # Get all versions of this document
+        # Get all chunks of this document
         results = collection.get(where={"document_id": document_id})
-    
+
     if results['ids'] and len(results['ids']) > 0:
-        # Return the first (or only) result
+        # Sort chunks by chunk_index to reconstruct in correct order
+        chunks_data = list(zip(
+            results['metadatas'],
+            results['documents']
+        ))
+
+        # Sort by chunk_index if available
+        chunks_data.sort(key=lambda x: x[0].get('chunk_index', 0))
+
+        # Reconstruct full content
+        full_content = '\n\n'.join([doc for _, doc in chunks_data])
+
         return {
-            "document_id": results['metadatas'][0]['document_id'],
-            "version_id": results['metadatas'][0]['version_id'],
-            "title": results['metadatas'][0]['title'],
-            "content": results['documents'][0]
+            "document_id": chunks_data[0][0]['document_id'],
+            "version_id": chunks_data[0][0]['version_id'],
+            "title": chunks_data[0][0]['title'],
+            "content": full_content
         }
-    
+
     return None
 
 def delete_from_rag(document_id: str, version_id: Optional[str] = None):
-    """Remove document or version from RAG"""
+    """Remove document or version from RAG (including all chunks)"""
     collection = get_collection()
-    
+
     if version_id:
-        # Delete specific version
-        collection.delete(ids=[f"{document_id}_{version_id}"])
+        # Delete all chunks of specific version
+        # ChromaDB requires $and for multiple conditions
+        results = collection.get(where={
+            "$and": [
+                {"document_id": document_id},
+                {"version_id": version_id}
+            ]
+        })
+        if results['ids']:
+            collection.delete(ids=results['ids'])
     else:
-        # Delete all versions of document
+        # Delete all versions and chunks of document
         results = collection.get(where={"document_id": document_id})
         if results['ids']:
             collection.delete(ids=results['ids'])

@@ -44,7 +44,8 @@ def parse_pdf_to_markdown(pdf_path: str) -> str:
     try:
         md = MarkItDown()
         result = md.convert(pdf_path)
-        return result.text_content
+        print(result.markdown)
+        return result.markdown
     except Exception as e:
         raise Exception(f"Failed to convert PDF to markdown: {str(e)}")
 

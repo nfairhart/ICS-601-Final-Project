@@ -1,11 +1,27 @@
 from fasthtml.common import *
 import httpx
 from typing import Optional
+import sys
+import os
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.layout import base_layout
+from shared.styles import PERMISSION_STYLES
 
 API_BASE = "http://localhost:8000"
 
 def permissions_page_layout(content):
     """Common layout for permissions pages"""
+    return base_layout(
+        "Permissions - Document Control System",
+        content,
+        additional_styles=PERMISSION_STYLES
+    )
+
+def _old_permissions_page_layout(content):
+    """DEPRECATED - keeping temporarily for reference"""
     return Html(
         Head(
             Title("Permissions - Document Control System"),

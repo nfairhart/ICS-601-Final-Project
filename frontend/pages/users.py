@@ -1,168 +1,23 @@
 from fasthtml.common import *
 import httpx
 from typing import Optional
+import sys
+import os
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.layout import base_layout
+from shared.styles import USER_STYLES
 
 API_BASE = "http://localhost:8000"
 
 def users_page_layout(content):
     """Common layout for users pages"""
-    return Html(
-        Head(
-            Title("Users - Document Control System"),
-            Style("""
-                body {
-                    font-family: Arial, sans-serif;
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background: #f5f5f5;
-                }
-                .header {
-                    background: white;
-                    padding: 20px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                .btn {
-                    display: inline-block;
-                    padding: 10px 20px;
-                    background: #007bff;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 4px;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 14px;
-                }
-                .btn:hover {
-                    background: #0056b3;
-                }
-                .btn-secondary {
-                    background: #6c757d;
-                }
-                .btn-secondary:hover {
-                    background: #545b62;
-                }
-                .btn-danger {
-                    background: #dc3545;
-                }
-                .btn-danger:hover {
-                    background: #c82333;
-                }
-                .content {
-                    background: white;
-                    padding: 30px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .user-list {
-                    list-style: none;
-                    padding: 0;
-                }
-                .user-item {
-                    padding: 15px;
-                    border-bottom: 1px solid #e9ecef;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                .user-item:last-child {
-                    border-bottom: none;
-                }
-                .user-info {
-                    flex-grow: 1;
-                }
-                .user-info h3 {
-                    margin: 0 0 5px 0;
-                    color: #333;
-                }
-                .user-info p {
-                    margin: 0;
-                    color: #666;
-                    font-size: 14px;
-                }
-                .user-actions {
-                    display: flex;
-                    gap: 10px;
-                }
-                .form-group {
-                    margin-bottom: 20px;
-                }
-                .form-group label {
-                    display: block;
-                    margin-bottom: 5px;
-                    font-weight: bold;
-                    color: #333;
-                }
-                .form-group input {
-                    width: 100%;
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 14px;
-                    box-sizing: border-box;
-                }
-                .form-group input:focus {
-                    outline: none;
-                    border-color: #007bff;
-                }
-                .error {
-                    color: #dc3545;
-                    padding: 10px;
-                    background: #f8d7da;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                }
-                .success {
-                    color: #155724;
-                    padding: 10px;
-                    background: #d4edda;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                }
-                .empty-state {
-                    text-align: center;
-                    padding: 40px;
-                    color: #666;
-                }
-                .user-details {
-                    margin-top: 20px;
-                }
-                .detail-section {
-                    margin-bottom: 30px;
-                }
-                .detail-section h3 {
-                    color: #333;
-                    border-bottom: 2px solid #007bff;
-                    padding-bottom: 10px;
-                }
-                .detail-row {
-                    display: flex;
-                    padding: 10px 0;
-                    border-bottom: 1px solid #e9ecef;
-                }
-                .detail-label {
-                    font-weight: bold;
-                    width: 150px;
-                    color: #555;
-                }
-                .detail-value {
-                    color: #333;
-                }
-                .badge {
-                    display: inline-block;
-                    padding: 4px 8px;
-                    background: #007bff;
-                    color: white;
-                    border-radius: 4px;
-                    font-size: 12px;
-                }
-            """)
-        ),
-        Body(content)
+    return base_layout(
+        "Users - Document Control System",
+        content,
+        additional_styles=USER_STYLES
     )
 
 async def get_users():
@@ -188,41 +43,67 @@ async def get_user_by_id(user_id: str):
         return None
 
 async def create_user(email: str, full_name: Optional[str] = None, role: Optional[str] = None):
-    """Create a new user"""
+    """
+    Create a new user.
+    Validates input and handles Pydantic validation errors from backend.
+    """
     try:
         async with httpx.AsyncClient() as client:
-            data = {"email": email}
-            if full_name:
-                data["full_name"] = full_name
-            if role:
-                data["role"] = role
+            data = {"email": email.strip()}
+            if full_name and full_name.strip():
+                data["full_name"] = full_name.strip()
+            if role and role.strip():
+                data["role"] = role.strip()
 
             response = await client.post(f"{API_BASE}/users", json=data)
             response.raise_for_status()
             return response.json(), None
     except httpx.HTTPStatusError as e:
-        return None, f"Error: {e.response.text}"
+        # Parse validation errors if available
+        try:
+            error_data = e.response.json()
+            if "detail" in error_data and isinstance(error_data["detail"], list):
+                errors = [f"{err['loc'][-1]}: {err['msg']}" for err in error_data["detail"]]
+                return None, "Validation errors: " + "; ".join(errors)
+            return None, f"Error: {error_data.get('detail', e.response.text)}"
+        except:
+            return None, f"Error: {e.response.text}"
     except Exception as e:
         return None, f"Error creating user: {str(e)}"
 
 async def update_user(user_id: str, email: Optional[str] = None,
                      full_name: Optional[str] = None, role: Optional[str] = None):
-    """Update a user"""
+    """
+    Update a user.
+    Validates input and handles Pydantic validation errors from backend.
+    """
     try:
         async with httpx.AsyncClient() as client:
             data = {}
-            if email:
-                data["email"] = email
-            if full_name:
-                data["full_name"] = full_name
-            if role:
-                data["role"] = role
+            if email and email.strip():
+                data["email"] = email.strip()
+            if full_name is not None:
+                # Send trimmed value or None if empty
+                data["full_name"] = full_name.strip() if full_name.strip() else None
+            if role and role.strip():
+                data["role"] = role.strip()
+
+            if not data:
+                return None, "No fields to update"
 
             response = await client.patch(f"{API_BASE}/users/{user_id}", json=data)
             response.raise_for_status()
             return response.json(), None
     except httpx.HTTPStatusError as e:
-        return None, f"Error: {e.response.text}"
+        # Parse validation errors if available
+        try:
+            error_data = e.response.json()
+            if "detail" in error_data and isinstance(error_data["detail"], list):
+                errors = [f"{err['loc'][-1]}: {err['msg']}" for err in error_data["detail"]]
+                return None, "Validation errors: " + "; ".join(errors)
+            return None, f"Error: {error_data.get('detail', e.response.text)}"
+        except:
+            return None, f"Error: {e.response.text}"
     except Exception as e:
         return None, f"Error updating user: {str(e)}"
 
@@ -312,12 +193,14 @@ def render_user_form(title, action, user=None, error=None):
 
                     Div(
                         Label("Role", _for="role"),
-                        Input(
-                            type="text",
+                        Select(
+                            Option("-- Select Role (Optional) --", value="", selected=(not user or not user.get("role"))),
+                            Option("Viewer", value="viewer", selected=(user and user.get("role") == "viewer")),
+                            Option("Editor", value="editor", selected=(user and user.get("role") == "editor")),
+                            Option("Admin", value="admin", selected=(user and user.get("role") == "admin")),
+                            Option("Owner", value="owner", selected=(user and user.get("role") == "owner")),
                             name="role",
-                            id="role",
-                            value=user.get("role") if user else "",
-                            placeholder="e.g., editor, admin, viewer"
+                            id="role"
                         ),
                         cls="form-group"
                     ),

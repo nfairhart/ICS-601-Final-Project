@@ -1,11 +1,27 @@
 from fasthtml.common import *
 import httpx
 from typing import Optional, List, Dict
+import sys
+import os
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.layout import base_layout
+from shared.styles import UPLOAD_STYLES
 
 API_BASE = "http://localhost:8000"
 
 def upload_page_layout(content):
     """Common layout for upload pages"""
+    return base_layout(
+        "Upload PDF - Document Control System",
+        content,
+        additional_styles=UPLOAD_STYLES
+    )
+
+def _old_upload_page_layout(content):
+    """DEPRECATED - keeping temporarily for reference"""
     return Html(
         Head(
             Title("Upload PDF - Document Control System"),

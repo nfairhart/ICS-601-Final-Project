@@ -1,228 +1,94 @@
 from fasthtml.common import *
 import httpx
 from typing import Optional, List, Dict
+import sys
+import os
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.layout import base_layout
+from shared.styles import SEARCH_STYLES
 
 API_BASE = "http://localhost:8000"
 
+# Additional search-specific styles for score colors
+SEARCH_EXTRA_STYLES = """
+.top-k-input {
+    width: 80px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.top-k-input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+.result-item {
+    background: #f8f9fa;
+}
+.result-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #007bff;
+    margin: 0;
+    text-decoration: none;
+}
+.result-title:hover {
+    text-decoration: underline;
+}
+.score-high {
+    background: #28a745;
+}
+.score-medium {
+    background: #ffc107;
+    color: #333;
+}
+.score-low {
+    background: #dc3545;
+}
+.result-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.result-meta-label {
+    font-weight: bold;
+}
+.results-summary {
+    padding: 15px;
+    background: #e7f3ff;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    color: #004085;
+}
+.info-box {
+    background: #e7f3ff;
+    border-left: 4px solid #007bff;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+.info-box p {
+    margin: 5px 0;
+    color: #004085;
+}
+.no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+"""
+
 def search_page_layout(content):
     """Common layout for search pages"""
-    return Html(
-        Head(
-            Title("Search Documents - Document Control System"),
-            Style("""
-                body {
-                    font-family: Arial, sans-serif;
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background: #f5f5f5;
-                }
-                .header {
-                    background: white;
-                    padding: 20px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                .btn {
-                    display: inline-block;
-                    padding: 10px 20px;
-                    background: #007bff;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 4px;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 14px;
-                }
-                .btn:hover {
-                    background: #0056b3;
-                }
-                .btn-secondary {
-                    background: #6c757d;
-                }
-                .btn-secondary:hover {
-                    background: #545b62;
-                }
-                .content {
-                    background: white;
-                    padding: 30px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .search-section {
-                    margin-bottom: 30px;
-                }
-                .search-form {
-                    display: flex;
-                    gap: 10px;
-                    margin-bottom: 20px;
-                }
-                .search-input {
-                    flex-grow: 1;
-                    padding: 12px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 14px;
-                }
-                .search-input:focus {
-                    outline: none;
-                    border-color: #007bff;
-                }
-                .form-row {
-                    display: flex;
-                    gap: 15px;
-                    margin-bottom: 15px;
-                    align-items: center;
-                    flex-wrap: wrap;
-                }
-                .form-group {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-                .form-label {
-                    font-weight: bold;
-                    color: #333;
-                    white-space: nowrap;
-                }
-                .user-select {
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 14px;
-                    background: white;
-                    cursor: pointer;
-                    min-width: 250px;
-                }
-                .user-select:focus {
-                    outline: none;
-                    border-color: #007bff;
-                }
-                .top-k-input {
-                    width: 80px;
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 14px;
-                }
-                .top-k-input:focus {
-                    outline: none;
-                    border-color: #007bff;
-                }
-                .results-section {
-                    margin-top: 30px;
-                }
-                .result-item {
-                    padding: 20px;
-                    border: 1px solid #e9ecef;
-                    border-radius: 8px;
-                    margin-bottom: 15px;
-                    background: #f8f9fa;
-                }
-                .result-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: start;
-                    margin-bottom: 10px;
-                }
-                .result-title {
-                    font-size: 18px;
-                    font-weight: bold;
-                    color: #007bff;
-                    margin: 0;
-                    text-decoration: none;
-                }
-                .result-title:hover {
-                    text-decoration: underline;
-                }
-                .result-score {
-                    color: white;
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-                .score-high {
-                    background: #28a745;
-                }
-                .score-medium {
-                    background: #ffc107;
-                    color: #333;
-                }
-                .score-low {
-                    background: #dc3545;
-                }
-                .result-content {
-                    color: #333;
-                    line-height: 1.6;
-                    margin: 10px 0;
-                    padding: 10px;
-                    background: white;
-                    border-left: 3px solid #007bff;
-                    border-radius: 4px;
-                }
-                .result-meta {
-                    display: flex;
-                    gap: 20px;
-                    color: #6c757d;
-                    font-size: 13px;
-                    margin-top: 10px;
-                }
-                .result-meta-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
-                }
-                .result-meta-label {
-                    font-weight: bold;
-                }
-                .results-summary {
-                    padding: 15px;
-                    background: #e7f3ff;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                    color: #004085;
-                }
-                .empty-state {
-                    text-align: center;
-                    padding: 60px 20px;
-                    color: #6c757d;
-                }
-                .empty-state h3 {
-                    margin-top: 0;
-                    color: #495057;
-                }
-                .error {
-                    color: #dc3545;
-                    padding: 10px;
-                    background: #f8d7da;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                }
-                .info-box {
-                    background: #e7f3ff;
-                    border-left: 4px solid #007bff;
-                    padding: 15px;
-                    margin-bottom: 20px;
-                    border-radius: 4px;
-                }
-                .info-box p {
-                    margin: 5px 0;
-                    color: #004085;
-                }
-                .no-results {
-                    text-align: center;
-                    padding: 40px 20px;
-                    color: #6c757d;
-                    background: #f8f9fa;
-                    border-radius: 8px;
-                }
-            """)
-        ),
-        Body(content)
+    return base_layout(
+        "Search Documents - Document Control System",
+        content,
+        additional_styles=SEARCH_STYLES + SEARCH_EXTRA_STYLES
     )
 
 async def get_users_for_select():
@@ -237,15 +103,24 @@ async def get_users_for_select():
         return []
 
 async def search_documents(query: str, user_id: str, top_k: int = 5):
-    """Search documents using RAG"""
+    """
+    Search documents using RAG.
+    Sends user_id in X-User-ID header for authentication.
+    """
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             data = {
                 "query": query,
-                "user_id": user_id,
                 "top_k": top_k
             }
-            response = await client.post(f"{API_BASE}/search", json=data)
+            headers = {
+                "X-User-ID": user_id
+            }
+            response = await client.post(
+                f"{API_BASE}/search",
+                json=data,
+                headers=headers
+            )
             response.raise_for_status()
             result = response.json()
 
@@ -254,7 +129,8 @@ async def search_documents(query: str, user_id: str, top_k: int = 5):
 
             return result, None
     except httpx.HTTPStatusError as e:
-        return None, f"Error: {e.response.text}"
+        error_detail = e.response.json().get("detail", e.response.text) if e.response.headers.get("content-type") == "application/json" else e.response.text
+        return None, f"Error: {error_detail}"
     except httpx.TimeoutException:
         return None, "Request timed out. Please try again with a simpler query."
     except Exception as e:

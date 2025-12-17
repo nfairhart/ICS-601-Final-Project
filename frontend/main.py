@@ -1,25 +1,25 @@
 from fasthtml.common import *
 import httpx
-from pages.users import (
+from frontend.pages.users import (
     get_users, get_user_by_id, create_user, update_user,
     render_users_list, render_user_form, render_user_details
 )
-from pages.agent import (
+from frontend.pages.agent import (
     get_users_for_select as get_users_for_agent, query_agent,
     render_agent_page, render_agent_response
 )
-from pages.search import (
+from frontend.pages.search import (
     get_users_for_select as get_users_for_search, search_documents,
     render_search_page
 )
-from pages.upload import (
+from frontend.pages.upload import (
     get_users_for_select as get_users_for_upload,
     get_documents_for_select,
     upload_pdf_to_document,
     create_document_from_pdf,
     render_upload_page
 )
-from pages.permissions import (
+from frontend.pages.permissions import (
     get_documents as get_documents_for_permissions,
     get_document_by_id as get_document_for_permissions,
     get_users as get_users_for_permissions,
@@ -30,7 +30,7 @@ from pages.permissions import (
     render_grant_permission_form,
     render_document_permissions
 )
-from pages.documents import (
+from frontend.pages.documents import (
     get_documents,
     get_document_by_id,
     create_document,

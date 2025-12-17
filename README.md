@@ -32,8 +32,13 @@ A FastAPI-based document management system with RAG (Retrieval-Augmented Generat
    ```
 
 3. **Configure environment variables:**
-   
-   Create a `.env` file in the root directory:
+
+   Copy the example file and configure your settings:
+   ```bash
+   cp .env.example .env
+   ```
+
+   Then edit `.env` with your actual values:
    ```bash
    # PostgreSQL/Supabase
    host=your-db-host
@@ -41,16 +46,26 @@ A FastAPI-based document management system with RAG (Retrieval-Augmented Generat
    dbname=your-db-name
    user=your-db-user
    password=your-db-password
-   
+
    # OpenAI
    OPENAI_API_KEY=sk-your-key-here
-   
+
    # ChromaDB
    CHROMA_PERSIST_DIR=./chroma_data
-   
-   # Supabase Storage (optional)
+
+   # Supabase Storage
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_KEY=your-supabase-anon-key
    BUCKET_NAME=pdfs
+
+   # CORS Configuration
+   # Development: include both localhost and 127.0.0.1
+   # Production: only include your production domain(s)
+   ALLOWED_ORIGINS=http://localhost:5001,http://127.0.0.1:5001
    ```
+
+   **Security Note:** The `ALLOWED_ORIGINS` setting controls which domains can access your API.
+   Never use `*` in production. Update this value before deploying.
 
 4. **Run database setup:**
    ```bash
@@ -74,6 +89,8 @@ A FastAPI-based document management system with RAG (Retrieval-Augmented Generat
 - **RAG Integration**: Vector search using ChromaDB with OpenAI embeddings
 - **AI Agent**: PydanticAI-powered agent with document search tools
 - **Audit Trail**: All changes tracked with timestamps and user context
+- **Input Validation**: Comprehensive Pydantic validation with enums and field validators
+- **CORS Security**: Configurable origins (no wildcard in production)
 
 ## API Endpoints
 
@@ -107,6 +124,32 @@ A FastAPI-based document management system with RAG (Retrieval-Augmented Generat
 
 ## Development
 
+### Code Organization
+
+The project follows a modular structure with shared components:
+
+**Backend:** `/backend`
+- `app.py` - FastAPI application with REST endpoints
+- `models.py` - SQLAlchemy database models
+- `database.py` - Database configuration
+- `rag.py` - RAG (Retrieval-Augmented Generation) with ChromaDB
+- `ai_agent.py` - PydanticAI agent with document tools
+- `utils.py` - Utility functions for PDF processing
+
+**Frontend:** `/frontend`
+- `main.py` - FastHTML application entry point
+- `shared/` - Shared styles and layout components (eliminates CSS duplication)
+  - `styles.py` - Centralized CSS styles (~675 lines)
+  - `layout.py` - Reusable page layout function
+- `pages/` - Individual page modules (documents, users, search, agent, etc.)
+
+**Additional Documentation:**
+- [REFACTORING.md](REFACTORING.md) - CSS refactoring details (~1,000 lines eliminated)
+- [VALIDATION.md](VALIDATION.md) - Backend Pydantic validation with enums
+- [FRONTEND_VALIDATION.md](FRONTEND_VALIDATION.md) - Frontend validation updates
+
+### Running Tests
+
 Run tests:
 ```bash
 python -m backend.test_connection
@@ -116,6 +159,18 @@ Check database structure:
 ```bash
 cat erd.txt
 ```
+
+## Security
+
+This application implements basic authentication for development purposes. **The current authentication is NOT suitable for production.**
+
+See [SECURITY.md](SECURITY.md) for:
+- Current security implementation details
+- Known security limitations
+- Production security recommendations
+- Security checklist before deployment
+
+**Important:** Never deploy to production with the current header-based authentication. Implement JWT tokens or OAuth2 first.
 
 ## License
 

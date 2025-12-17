@@ -1,256 +1,23 @@
 from fasthtml.common import *
 import httpx
 from typing import Optional
+import sys
+import os
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.layout import base_layout
+from shared.styles import DOCUMENT_STYLES
 
 API_BASE = "http://localhost:8000"
 
 def documents_page_layout(content):
     """Common layout for documents pages"""
-    return Html(
-        Head(
-            Title("Documents - Document Control System"),
-            Style("""
-                body {
-                    font-family: Arial, sans-serif;
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background: #f5f5f5;
-                }
-                .header {
-                    background: white;
-                    padding: 20px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                .btn {
-                    display: inline-block;
-                    padding: 10px 20px;
-                    background: #007bff;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 4px;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 14px;
-                    margin-right: 10px;
-                }
-                .btn:hover {
-                    background: #0056b3;
-                }
-                .btn-secondary {
-                    background: #6c757d;
-                }
-                .btn-secondary:hover {
-                    background: #545b62;
-                }
-                .btn-danger {
-                    background: #dc3545;
-                }
-                .btn-danger:hover {
-                    background: #c82333;
-                }
-                .btn-warning {
-                    background: #ffc107;
-                    color: #212529;
-                }
-                .btn-warning:hover {
-                    background: #e0a800;
-                }
-                .btn-success {
-                    background: #28a745;
-                }
-                .btn-success:hover {
-                    background: #218838;
-                }
-                .content {
-                    background: white;
-                    padding: 30px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .document-list {
-                    list-style: none;
-                    padding: 0;
-                }
-                .document-item {
-                    padding: 20px;
-                    border-bottom: 1px solid #e9ecef;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    transition: background 0.2s;
-                }
-                .document-item:hover {
-                    background: #f8f9fa;
-                }
-                .document-item:last-child {
-                    border-bottom: none;
-                }
-                .document-info {
-                    flex-grow: 1;
-                }
-                .document-info h3 {
-                    margin: 0 0 10px 0;
-                    color: #333;
-                }
-                .document-info p {
-                    margin: 5px 0;
-                    color: #666;
-                    font-size: 14px;
-                }
-                .document-actions {
-                    display: flex;
-                    gap: 10px;
-                    flex-wrap: wrap;
-                }
-                .form-group {
-                    margin-bottom: 20px;
-                }
-                .form-group label {
-                    display: block;
-                    margin-bottom: 5px;
-                    font-weight: bold;
-                    color: #333;
-                }
-                .form-group input, .form-group textarea, .form-group select {
-                    width: 100%;
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 14px;
-                    box-sizing: border-box;
-                    font-family: Arial, sans-serif;
-                }
-                .form-group textarea {
-                    min-height: 100px;
-                    resize: vertical;
-                }
-                .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-                    outline: none;
-                    border-color: #007bff;
-                }
-                .error {
-                    color: #dc3545;
-                    padding: 10px;
-                    background: #f8d7da;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                }
-                .success {
-                    color: #155724;
-                    padding: 10px;
-                    background: #d4edda;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                }
-                .empty-state {
-                    text-align: center;
-                    padding: 40px;
-                    color: #666;
-                }
-                .document-details {
-                    margin-top: 20px;
-                }
-                .detail-section {
-                    margin-bottom: 30px;
-                    padding: 20px;
-                    background: #f8f9fa;
-                    border-radius: 8px;
-                }
-                .detail-section h3 {
-                    color: #333;
-                    border-bottom: 2px solid #007bff;
-                    padding-bottom: 10px;
-                    margin-top: 0;
-                }
-                .detail-row {
-                    display: flex;
-                    padding: 10px 0;
-                    border-bottom: 1px solid #e9ecef;
-                }
-                .detail-label {
-                    font-weight: bold;
-                    width: 200px;
-                    color: #555;
-                }
-                .detail-value {
-                    color: #333;
-                    flex-grow: 1;
-                }
-                .badge {
-                    display: inline-block;
-                    padding: 4px 12px;
-                    background: #007bff;
-                    color: white;
-                    border-radius: 12px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-                .badge-draft {
-                    background: #ffc107;
-                    color: #212529;
-                }
-                .badge-archived {
-                    background: #6c757d;
-                }
-                .filter-bar {
-                    margin-bottom: 20px;
-                    padding: 15px;
-                    background: #f8f9fa;
-                    border-radius: 4px;
-                    display: flex;
-                    gap: 10px;
-                    align-items: center;
-                }
-                .version-list {
-                    list-style: none;
-                    padding: 0;
-                }
-                .version-item {
-                    padding: 15px;
-                    border: 1px solid #e9ecef;
-                    border-radius: 4px;
-                    margin-bottom: 10px;
-                    background: white;
-                }
-                .version-item h4 {
-                    margin: 0 0 10px 0;
-                    color: #333;
-                }
-                .version-current {
-                    border-color: #007bff;
-                    background: #e7f3ff;
-                }
-                .markdown-content {
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 4px;
-                    border-left: 3px solid #007bff;
-                    max-height: 300px;
-                    overflow-y: auto;
-                    font-family: monospace;
-                    font-size: 12px;
-                    white-space: pre-wrap;
-                    word-wrap: break-word;
-                }
-                .permission-list {
-                    list-style: none;
-                    padding: 0;
-                }
-                .permission-item {
-                    padding: 10px;
-                    border-bottom: 1px solid #e9ecef;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-            """)
-        ),
-        Body(content)
+    return base_layout(
+        "Documents - Document Control System",
+        content,
+        additional_styles=DOCUMENT_STYLES
     )
 
 async def get_documents(status: Optional[str] = None):
@@ -299,22 +66,41 @@ async def create_document(title: str, created_by: str, description: Optional[str
 
 async def update_document(document_id: str, title: Optional[str] = None,
                          status: Optional[str] = None, description: Optional[str] = None):
-    """Update a document"""
+    """
+    Update a document.
+    Sends data as JSON body to match backend Pydantic schema validation.
+    """
     try:
         async with httpx.AsyncClient() as client:
-            params = {}
-            if title:
-                params["title"] = title
-            if status:
-                params["status"] = status
-            if description:
-                params["description"] = description
+            # Build JSON body with only provided fields
+            data = {}
+            if title is not None and title.strip():
+                data["title"] = title.strip()
+            if status is not None and status.strip():
+                data["status"] = status.strip()
+            if description is not None:
+                # Send empty string as None for backend validation
+                data["description"] = description.strip() if description.strip() else None
 
-            response = await client.patch(f"{API_BASE}/documents/{document_id}", params=params)
+            if not data:
+                return None, "No fields to update"
+
+            response = await client.patch(
+                f"{API_BASE}/documents/{document_id}",
+                json=data  # Send as JSON body, not query params
+            )
             response.raise_for_status()
             return response.json(), None
     except httpx.HTTPStatusError as e:
-        return None, f"Error: {e.response.text}"
+        # Parse validation errors if available
+        try:
+            error_data = e.response.json()
+            if "detail" in error_data and isinstance(error_data["detail"], list):
+                errors = [f"{err['loc'][-1]}: {err['msg']}" for err in error_data["detail"]]
+                return None, "Validation errors: " + "; ".join(errors)
+            return None, f"Error: {error_data.get('detail', e.response.text)}"
+        except:
+            return None, f"Error: {e.response.text}"
     except Exception as e:
         return None, f"Error updating document: {str(e)}"
 
@@ -376,6 +162,8 @@ def render_documents_list(documents, users=None, status_filter=None, error=None,
                         Select(
                             Option("All Documents", value="", selected=(not status_filter)),
                             Option("Draft", value="Draft", selected=(status_filter == "Draft")),
+                            Option("Review", value="Review", selected=(status_filter == "Review")),
+                            Option("Approved", value="Approved", selected=(status_filter == "Approved")),
                             Option("Archived", value="Archived", selected=(status_filter == "Archived")),
                             name="status",
                             onchange="this.form.submit()"
@@ -489,6 +277,8 @@ def render_document_form(title, action, users, document=None, selected_user_id=N
                         Label("Status", _for="status"),
                         Select(
                             Option("Draft", value="Draft", selected=(document.get("status") == "Draft")),
+                            Option("Review", value="Review", selected=(document.get("status") == "Review")),
+                            Option("Approved", value="Approved", selected=(document.get("status") == "Approved")),
                             Option("Archived", value="Archived", selected=(document.get("status") == "Archived")),
                             name="status",
                             id="status"

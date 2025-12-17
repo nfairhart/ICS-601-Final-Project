@@ -1,11 +1,27 @@
 from fasthtml.common import *
 import httpx
 from typing import Optional, List, Dict
+import sys
+import os
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.layout import base_layout
+from shared.styles import AGENT_STYLES
 
 API_BASE = "http://localhost:8000"
 
 def agent_page_layout(content):
     """Common layout for AI agent pages"""
+    return base_layout(
+        "AI Agent - Document Control System",
+        content,
+        additional_styles=AGENT_STYLES
+    )
+
+def _old_agent_page_layout(content):
+    """DEPRECATED - keeping temporarily for reference"""
     return Html(
         Head(
             Title("AI Agent - Document Control System"),
@@ -212,18 +228,28 @@ async def get_users_for_select():
         return []
 
 async def query_agent(query: str, user_id: str):
-    """Query the AI agent"""
+    """
+    Query the AI agent.
+    Sends user_id in X-User-ID header for authentication.
+    """
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
             data = {
-                "query": query,
-                "user_id": user_id
+                "query": query
             }
-            response = await client.post(f"{API_BASE}/agent/query", json=data)
+            headers = {
+                "X-User-ID": user_id
+            }
+            response = await client.post(
+                f"{API_BASE}/agent/query",
+                json=data,
+                headers=headers
+            )
             response.raise_for_status()
             return response.json(), None
     except httpx.HTTPStatusError as e:
-        return None, f"Error: {e.response.text}"
+        error_detail = e.response.json().get("detail", e.response.text) if e.response.headers.get("content-type") == "application/json" else e.response.text
+        return None, f"Error: {error_detail}"
     except httpx.TimeoutException:
         return None, "Request timed out. The agent might be processing a complex query."
     except Exception as e:

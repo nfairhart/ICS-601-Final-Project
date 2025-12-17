@@ -19,6 +19,29 @@ from pages.upload import (
     create_document_from_pdf,
     render_upload_page
 )
+from pages.permissions import (
+    get_documents as get_documents_for_permissions,
+    get_document_by_id as get_document_for_permissions,
+    get_users as get_users_for_permissions,
+    get_document_permissions,
+    grant_permission,
+    revoke_permission,
+    render_permissions_main,
+    render_grant_permission_form,
+    render_document_permissions
+)
+from pages.documents import (
+    get_documents,
+    get_document_by_id,
+    create_document,
+    update_document,
+    archive_document,
+    get_document_versions,
+    get_users as get_users_for_documents,
+    render_documents_list,
+    render_document_form,
+    render_document_details
+)
 
 # Create FastHTML app
 app, rt = fast_app()
@@ -166,25 +189,126 @@ def get():
     )
 
 @rt("/documents")
-def get():
-    """Documents listing page placeholder"""
-    return Html(
-        Head(Title("Documents")),
-        Body(
-            H1("Documents"),
-            P("Document listing will be implemented here"),
-            A("Back to Home", href="/"),
-            Hr(),
-            P("Features to implement:"),
-            Ul(
-                Li("List all documents (GET /documents)"),
-                Li("Filter by status"),
-                Li("View document details"),
-                Li("Create new document"),
-                Li("Update document metadata"),
-                Li("Archive documents")
-            )
+async def get(status: str = ""):
+    """Documents listing page"""
+    documents = await get_documents(status if status else None)
+    users = await get_users_for_documents()
+    return render_documents_list(
+        documents=documents,
+        users=users,
+        status_filter=status if status else None
+    )
+
+@rt("/documents/create")
+async def get():
+    """Create document form"""
+    users = await get_users_for_documents()
+    return render_document_form("Create New Document", "/documents/create", users=users)
+
+@rt("/documents/create")
+async def post(title: str, created_by: str, description: str = ""):
+    """Handle document creation"""
+    users = await get_users_for_documents()
+
+    document, error = await create_document(
+        title=title,
+        created_by=created_by,
+        description=description if description else None
+    )
+
+    if error:
+        return render_document_form(
+            "Create New Document",
+            "/documents/create",
+            users=users,
+            selected_user_id=created_by,
+            error=error
         )
+
+    # Redirect to document details
+    doc_details = await get_document_by_id(document["id"])
+    versions = await get_document_versions(document["id"])
+    return render_document_details(
+        document=doc_details,
+        versions=versions,
+        success="Document created successfully!"
+    )
+
+@rt("/documents/{document_id}")
+async def get(document_id: str):
+    """Document details page"""
+    document = await get_document_by_id(document_id)
+    versions = await get_document_versions(document_id)
+    return render_document_details(document=document, versions=versions)
+
+@rt("/documents/{document_id}/edit")
+async def get(document_id: str):
+    """Edit document form"""
+    document = await get_document_by_id(document_id)
+    users = await get_users_for_documents()
+
+    if not document:
+        documents = await get_documents()
+        return render_documents_list(documents=documents, error="Document not found")
+
+    return render_document_form(
+        "Edit Document",
+        f"/documents/{document_id}/edit",
+        users=users,
+        document=document
+    )
+
+@rt("/documents/{document_id}/edit")
+async def post(document_id: str, title: str = "", status: str = "", description: str = ""):
+    """Handle document update"""
+    users = await get_users_for_documents()
+
+    document, error = await update_document(
+        document_id=document_id,
+        title=title if title else None,
+        status=status if status else None,
+        description=description if description else None
+    )
+
+    if error:
+        existing_doc = await get_document_by_id(document_id)
+        return render_document_form(
+            "Edit Document",
+            f"/documents/{document_id}/edit",
+            users=users,
+            document=existing_doc,
+            error=error
+        )
+
+    # Redirect to document details
+    updated_doc = await get_document_by_id(document_id)
+    versions = await get_document_versions(document_id)
+    return render_document_details(
+        document=updated_doc,
+        versions=versions,
+        success="Document updated successfully!"
+    )
+
+@rt("/documents/{document_id}/archive")
+async def post(document_id: str):
+    """Handle document archival"""
+    result, error = await archive_document(document_id)
+
+    # Redirect to document details
+    document = await get_document_by_id(document_id)
+    versions = await get_document_versions(document_id)
+
+    if error:
+        return render_document_details(
+            document=document,
+            versions=versions,
+            error=error
+        )
+
+    return render_document_details(
+        document=document,
+        versions=versions,
+        success="Document archived successfully!"
     )
 
 @rt("/upload")
@@ -388,23 +512,89 @@ async def post(user_id: str, email: str = "", full_name: str = "", role: str = "
     return render_user_details(updated_user)
 
 @rt("/permissions")
-def get():
-    """Permissions management page placeholder"""
-    return Html(
-        Head(Title("Permissions")),
-        Body(
-            H1("Permissions"),
-            P("Permission management will be implemented here"),
-            A("Back to Home", href="/"),
-            Hr(),
-            P("Features to implement:"),
-            Ul(
-                Li("Grant permissions (POST /permissions)"),
-                Li("List document permissions (GET /documents/{id}/permissions)"),
-                Li("Revoke permissions (DELETE /permissions/{id})"),
-                Li("Permission types: read, write, admin")
-            )
+async def get(mode: str = "grant"):
+    """Permissions management page"""
+    documents = await get_documents_for_permissions()
+    return render_permissions_main(documents=documents, mode=mode)
+
+@rt("/permissions/grant")
+async def get(document_id: str = ""):
+    """Grant permission form"""
+    if not document_id:
+        documents = await get_documents_for_permissions()
+        return render_permissions_main(documents=documents, mode="grant", error="Please select a document")
+
+    document = await get_document_for_permissions(document_id)
+    users = await get_users_for_permissions()
+    return render_grant_permission_form(document=document, users=users)
+
+@rt("/permissions/grant")
+async def post(document_id: str, user_id: str, permission_type: str):
+    """Handle permission grant"""
+    # Grant the permission
+    result, error = await grant_permission(document_id, user_id, permission_type)
+
+    if error:
+        document = await get_document_for_permissions(document_id)
+        users = await get_users_for_permissions()
+        return render_grant_permission_form(
+            document=document,
+            users=users,
+            selected_user_id=user_id,
+            error=error
         )
+
+    # Redirect to document permissions view
+    document = await get_document_for_permissions(document_id)
+    permissions = await get_document_permissions(document_id)
+    users = await get_users_for_permissions()
+    users_map = {user["id"]: user for user in users}
+
+    return render_document_permissions(
+        document=document,
+        permissions=permissions,
+        users_map=users_map,
+        success="Permission granted successfully!"
+    )
+
+@rt("/permissions/document/{document_id}")
+async def get(document_id: str):
+    """View permissions for a specific document"""
+    document = await get_document_for_permissions(document_id)
+    permissions = await get_document_permissions(document_id)
+    users = await get_users_for_permissions()
+    users_map = {user["id"]: user for user in users}
+
+    return render_document_permissions(
+        document=document,
+        permissions=permissions,
+        users_map=users_map
+    )
+
+@rt("/permissions/revoke")
+async def post(permission_id: str, document_id: str):
+    """Handle permission revocation"""
+    result, error = await revoke_permission(permission_id)
+
+    # Redirect back to document permissions view
+    document = await get_document_for_permissions(document_id)
+    permissions = await get_document_permissions(document_id)
+    users = await get_users_for_permissions()
+    users_map = {user["id"]: user for user in users}
+
+    if error:
+        return render_document_permissions(
+            document=document,
+            permissions=permissions,
+            users_map=users_map,
+            error=error
+        )
+
+    return render_document_permissions(
+        document=document,
+        permissions=permissions,
+        users_map=users_map,
+        success="Permission revoked successfully!"
     )
 
 # Run the app

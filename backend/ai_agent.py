@@ -62,7 +62,7 @@ def search_documents(ctx: RunContext[AgentContext], query: str, top_k: int = 5) 
         
         response = f"Found {len(results)} relevant documents:\n\n"
         for i, result in enumerate(results, 1):
-            score = result['relevance_score']
+            score = result['score']
             preview = result['content'][:200] + "..." if len(result['content']) > 200 else result['content']
             response += f"{i}. **{result['title']}** (Relevance: {score:.2f})\n"
             response += f"   Document ID: {result['document_id']}\n"

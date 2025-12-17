@@ -174,24 +174,34 @@ def archive_document(document_id: UUID, db: Session = Depends(get_db)):
 # === VERSION ENDPOINTS ===
 
 @app.post("/versions")
-def create_version(version: VersionCreate, background_tasks: BackgroundTasks, 
+def create_version(version: VersionCreate, background_tasks: BackgroundTasks,
                    db: Session = Depends(get_db)):
     doc = db.query(Document).filter(Document.id == version.document_id).first()
     if not doc:
         raise HTTPException(404, "Document not found")
-    
+
     db_version = DocumentVersion(**version.model_dump())
     db.add(db_version)
     db.commit()
     db.refresh(db_version)
-    
+
+    # Get the old version ID before updating
+    old_version_id = str(doc.current_version_id) if doc.current_version_id else None
+
     # Update document's current version
     doc.current_version_id = db_version.id
     doc.updated_at = datetime.utcnow()
     db.commit()
-    
+
     # Index in RAG (background)
     if db_version.markdown_content:
+        # Remove old version from RAG first, then add new version
+        if old_version_id:
+            background_tasks.add_task(
+                delete_from_rag,
+                str(version.document_id),
+                old_version_id
+            )
         background_tasks.add_task(
             add_to_rag,
             str(version.document_id),
@@ -199,7 +209,7 @@ def create_version(version: VersionCreate, background_tasks: BackgroundTasks,
             doc.title,
             db_version.markdown_content
         )
-    
+
     return db_version
 
 @app.get("/documents/{document_id}/versions")
@@ -277,12 +287,21 @@ async def upload_pdf_version(
         db.commit()
         db.refresh(db_version)
         
+        # Get the old version ID before updating
+        old_version_id = str(doc.current_version_id) if doc.current_version_id else None
+
         # Update document's current version
         doc.current_version_id = db_version.id
         doc.updated_at = datetime.utcnow()
         db.commit()
-        
-        # Index in RAG (background)
+
+        # Index in RAG (background) - remove old version first, then add new
+        if old_version_id:
+            background_tasks.add_task(
+                delete_from_rag,
+                str(document_id),
+                old_version_id
+            )
         background_tasks.add_task(
             add_to_rag,
             str(document_id),

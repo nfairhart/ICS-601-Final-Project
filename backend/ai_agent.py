@@ -6,11 +6,11 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from dotenv import load_dotenv
 
-from .database import SessionLocal
-from .models import User, Document, DocumentPermission, DocumentVersion
-from .rag import (
-    search_rag, 
-    get_document_content, 
+from database import SessionLocal
+from models import User, Document, DocumentPermission, DocumentVersion
+from rag import (
+    search_rag,
+    get_document_content,
     get_similar_documents
 )
 

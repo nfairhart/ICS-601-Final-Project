@@ -8,87 +8,14 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.layout import base_layout
-from shared.styles import SEARCH_STYLES
 
 API_BASE = "http://localhost:8000"
-
-# Additional search-specific styles for score colors
-SEARCH_EXTRA_STYLES = """
-.top-k-input {
-    width: 80px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-}
-.top-k-input:focus {
-    outline: none;
-    border-color: #007bff;
-}
-.result-item {
-    background: #f8f9fa;
-}
-.result-title {
-    font-size: 18px;
-    font-weight: bold;
-    color: #007bff;
-    margin: 0;
-    text-decoration: none;
-}
-.result-title:hover {
-    text-decoration: underline;
-}
-.score-high {
-    background: #28a745;
-}
-.score-medium {
-    background: #ffc107;
-    color: #333;
-}
-.score-low {
-    background: #dc3545;
-}
-.result-meta-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.result-meta-label {
-    font-weight: bold;
-}
-.results-summary {
-    padding: 15px;
-    background: #e7f3ff;
-    border-radius: 4px;
-    margin-bottom: 20px;
-    color: #004085;
-}
-.info-box {
-    background: #e7f3ff;
-    border-left: 4px solid #007bff;
-    padding: 15px;
-    margin-bottom: 20px;
-    border-radius: 4px;
-}
-.info-box p {
-    margin: 5px 0;
-    color: #004085;
-}
-.no-results {
-    text-align: center;
-    padding: 40px 20px;
-    color: #6c757d;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-"""
 
 def search_page_layout(content):
     """Common layout for search pages"""
     return base_layout(
         "Search Documents - Document Control System",
-        content,
-        additional_styles=SEARCH_STYLES + SEARCH_EXTRA_STYLES
+        content
     )
 
 async def get_users_for_select():
@@ -105,21 +32,18 @@ async def get_users_for_select():
 async def search_documents(query: str, user_id: str, top_k: int = 5):
     """
     Search documents using RAG.
-    Sends user_id in X-User-ID header for authentication.
+    Sends user_id in request body.
     """
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             data = {
                 "query": query,
+                "user_id": user_id,
                 "top_k": top_k
-            }
-            headers = {
-                "X-User-ID": user_id
             }
             response = await client.post(
                 f"{API_BASE}/search",
-                json=data,
-                headers=headers
+                json=data
             )
             response.raise_for_status()
             result = response.json()

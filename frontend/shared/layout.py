@@ -1,21 +1,18 @@
 """Shared layout components for the frontend"""
-from fasthtml.common import Html, Head, Title, Style, Body
-from .styles import COMMON_STYLES
+from fasthtml.common import Html, Head, Title, Body
 
 
-def base_layout(title: str, content, additional_styles: str = ""):
+def base_layout(title: str, content):
     """
     Base layout for all pages.
 
     Args:
         title: Page title
-        content: Page content (fasthtml components)
-        additional_styles: Optional additional CSS styles specific to the page
+        content: Page content
     """
     return Html(
         Head(
-            Title(title),
-            Style(COMMON_STYLES + additional_styles)
+            Title(title)
         ),
         Body(content)
     )

@@ -1,13 +1,101 @@
 @startuml
-actor User
-participant Frontend
-participant Backend
-participant VectorStore
+title AI Agent Query with Permission-Aware RAG Search
 
-User -> Frontend: Search Documents
-Frontend -> Backend: POST /search
-Backend -> VectorStore: Query Embeddings
-VectorStore --> Backend: Relevant Documents
-Backend --> Frontend: Search Results
-Frontend --> User: Display Results
+actor User
+participant "Frontend\n(FastHTML)" as Frontend
+participant "Backend API\n(FastAPI)" as Backend
+participant "Database\n(SQLite)" as Database
+participant "AI Agent\n(ai_agent.py)" as Agent
+participant "RAG System\n(rag.py)" as RAG
+participant "ChromaDB\n(Vector Store)" as Chroma
+participant "OpenAI\nGPT-4o-mini" as LLM
+
+== User Query ==
+User -> Frontend: Navigate to AI Agent page
+activate Frontend
+Frontend --> User: Display chat interface
+
+User -> Frontend: Enter query:\n"Find documents about project requirements"
+Frontend -> Backend: POST /api/agent/query\n{query: "Find documents about..."}
+activate Backend
+
+Backend -> Backend: Get current user from session\n(user_id, email)
+
+== Permission Check ==
+Backend -> Database: SELECT document_permissions\nWHERE user_id = ?
+activate Database
+Database --> Backend: List of accessible document_ids
+deactivate Database
+
+== Agent Initialization ==
+Backend -> Agent: run_agent(user_id, email, query)
+activate Agent
+Agent -> Agent: Create AgentContext\n(user_id, email, accessible_doc_ids)
+
+== LLM Processing ==
+Agent -> LLM: Send query + system prompt\n+ available tools
+activate LLM
+LLM --> Agent: Tool call: search_documents(\nquery="project requirements",\ntop_k=5)
+deactivate LLM
+
+== RAG Search (Tool Execution) ==
+Agent -> RAG: search_rag(query, accessible_docs, top_k)
+activate RAG
+note right
+  Permission filtering:
+  Only searches documents
+  in accessible_doc_ids list
+end note
+
+RAG -> Chroma: Generate query embedding
+activate Chroma
+Chroma --> RAG: Query vector
+
+RAG -> Chroma: collection.query(\nquery_vector,\nn_results=5,\nwhere={"document_id": {"$in": accessible_docs}})
+note right
+  Vector similarity search
+  with permission filter
+  Uses cosine similarity
+end note
+
+Chroma --> RAG: Top 5 matching chunks with distances
+deactivate Chroma
+
+RAG -> RAG: Convert distances to relevance scores\nrelevance = 1 - distance
+RAG -> RAG: Filter by min_relevance threshold (0.2)
+
+RAG --> Agent: List[SearchResult]\n(document_id, title, content, score)
+deactivate RAG
+
+== LLM Response Generation ==
+Agent -> LLM: Tool result: [5 documents found...]\nGenerate response
+activate LLM
+LLM -> LLM: Analyze search results\nFormulate answer
+LLM --> Agent: "I found 5 relevant documents:\n1. Final_Project_Requirements (0.87)...\n..."
+deactivate LLM
+
+Agent --> Backend: Agent response string
+deactivate Agent
+
+== Response ==
+Backend --> Frontend: 200 OK\n{response: "I found 5 relevant documents..."}
+deactivate Backend
+
+Frontend -> Frontend: Render markdown response\nwith document references
+Frontend --> User: Display formatted AI response\nwith clickable document links
+deactivate Frontend
+
+== Alternative Flow: Multi-Tool Query ==
+note over User, LLM
+  If user asks "Summarize the requirements document",
+  the agent will:
+  1. Call search_documents() to find the document
+  2. Call get_full_document_content(doc_id)
+  3. Call summarize_document(doc_id)
+  4. Generate final summary response
+
+  This demonstrates Pydantic AI's autonomous
+  tool selection and multi-step reasoning.
+end note
+
 @enduml

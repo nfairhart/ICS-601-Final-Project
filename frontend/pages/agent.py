@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.layout import base_layout
-from shared.styles import AGENT_STYLES
 
 API_BASE = "http://localhost:8000"
 
@@ -16,8 +15,7 @@ def agent_page_layout(content):
     """Common layout for AI agent pages"""
     return base_layout(
         "AI Agent - Document Control System",
-        content,
-        additional_styles=AGENT_STYLES
+        content
     )
 
 def _old_agent_page_layout(content):
@@ -230,20 +228,17 @@ async def get_users_for_select():
 async def query_agent(query: str, user_id: str):
     """
     Query the AI agent.
-    Sends user_id in X-User-ID header for authentication.
+    Sends user_id in request body.
     """
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
             data = {
-                "query": query
-            }
-            headers = {
-                "X-User-ID": user_id
+                "query": query,
+                "user_id": user_id
             }
             response = await client.post(
                 f"{API_BASE}/agent/query",
-                json=data,
-                headers=headers
+                json=data
             )
             response.raise_for_status()
             return response.json(), None

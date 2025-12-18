@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.layout import base_layout
-from shared.styles import PERMISSION_STYLES
 
 API_BASE = "http://localhost:8000"
 
@@ -16,8 +15,7 @@ def permissions_page_layout(content):
     """Common layout for permissions pages"""
     return base_layout(
         "Permissions - Document Control System",
-        content,
-        additional_styles=PERMISSION_STYLES
+        content
     )
 
 def _old_permissions_page_layout(content):

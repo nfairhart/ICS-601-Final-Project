@@ -201,6 +201,7 @@ class PermissionResponse(BaseModel):
 class RAGSearch(BaseModel):
     """Schema for RAG search requests"""
     query: str = Field(..., min_length=1, max_length=1000)
+    user_id: UUID
     top_k: int = Field(5, ge=1, le=50)
 
     @field_validator('query')
@@ -234,6 +235,7 @@ class SearchResponse(BaseModel):
 class AgentQuery(BaseModel):
     """Schema for AI agent queries"""
     query: str = Field(..., min_length=1, max_length=2000)
+    user_id: UUID
 
     @field_validator('query')
     @classmethod

@@ -1,25 +1,25 @@
 from fasthtml.common import *
 import httpx
-from frontend.pages.users import (
+from pages.users import (
     get_users, get_user_by_id, create_user, update_user,
     render_users_list, render_user_form, render_user_details
 )
-from frontend.pages.agent import (
+from pages.agent import (
     get_users_for_select as get_users_for_agent, query_agent,
     render_agent_page, render_agent_response
 )
-from frontend.pages.search import (
+from pages.search import (
     get_users_for_select as get_users_for_search, search_documents,
     render_search_page
 )
-from frontend.pages.upload import (
+from pages.upload import (
     get_users_for_select as get_users_for_upload,
     get_documents_for_select,
     upload_pdf_to_document,
     create_document_from_pdf,
     render_upload_page
 )
-from frontend.pages.permissions import (
+from pages.permissions import (
     get_documents as get_documents_for_permissions,
     get_document_by_id as get_document_for_permissions,
     get_users as get_users_for_permissions,
@@ -30,7 +30,7 @@ from frontend.pages.permissions import (
     render_grant_permission_form,
     render_document_permissions
 )
-from frontend.pages.documents import (
+from pages.documents import (
     get_documents,
     get_document_by_id,
     create_document,
@@ -58,132 +58,49 @@ def get():
     return Html(
         Head(
             Title("Document Control System"),
-            Style("""
-                body {
-                    font-family: Arial, sans-serif;
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background: #f5f5f5;
-                }
-                .hero {
-                    background: white;
-                    padding: 40px;
-                    border-radius: 8px;
-                    margin-bottom: 30px;
-                    text-align: center;
-                }
-                .features {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 20px;
-                    margin-top: 30px;
-                }
-                .feature-card {
-                    background: white;
-                    padding: 30px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    transition: transform 0.2s;
-                }
-                .feature-card:hover {
-                    transform: translateY(-5px);
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-                }
-                .feature-card h2 {
-                    margin-top: 0;
-                    color: #333;
-                }
-                .feature-card p {
-                    color: #666;
-                    line-height: 1.6;
-                }
-                .btn {
-                    display: inline-block;
-                    padding: 10px 20px;
-                    background: #007bff;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 4px;
-                    margin-top: 10px;
-                    border: none;
-                    cursor: pointer;
-                }
-                .btn:hover {
-                    background: #0056b3;
-                }
-                .user-section {
-                    background: #e9ecef;
-                    padding: 15px;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                }
-            """)
         ),
         Body(
             Div(
                 H1("Document Control System"),
-                P("Manage documents with version control, permissions, and AI-powered search"),
-                cls="hero"
+                P("Manage documents with version control, permissions, and AI-powered search")
             ),
 
+            # First Row
             Div(
-                H3("Current User Session"),
-                P("Select or create a user to interact with the system"),
-                A("Manage Users", href="/users", cls="btn"),
-                cls="user-section"
-            ),
-
-            Div(
-                # Documents Feature
                 Div(
                     H2("Documents"),
-                    P("Create, view, and manage documents with version control. Upload PDFs or create documents from scratch."),
-                    A("View Documents", href="/documents", cls="btn"),
-                    cls="feature-card"
+                    P("Create, view, and manage documents with version control."),
+                    A("View Documents", href="/documents")
                 ),
-
-                # Upload Feature
                 Div(
                     H2("Upload PDF"),
-                    P("Upload PDF files to create new documents or add versions to existing documents."),
-                    A("Upload PDF", href="/upload", cls="btn"),
-                    cls="feature-card"
+                    P("Upload PDF files to create new documents or add versions."),
+                    A("Upload PDF", href="/upload")
                 ),
-
-                # Search Feature
                 Div(
                     H2("Search"),
-                    P("Search through document content using RAG (Retrieval Augmented Generation) technology."),
-                    A("Search Documents", href="/search", cls="btn"),
-                    cls="feature-card"
+                    P("Search through document content using RAG technology."),
+                    A("Search Documents", href="/search")
                 ),
-
-                # AI Agent Feature
                 Div(
                     H2("AI Agent"),
-                    P("Ask questions about your documents and get intelligent responses powered by AI."),
-                    A("Query AI Agent", href="/agent", cls="btn"),
-                    cls="feature-card"
-                ),
+                    P("Ask questions about your documents with AI assistance."),
+                    A("Query AI Agent", href="/agent")
+                )
+            ),
 
-                # Users Feature
+            # Second Row
+            Div(
                 Div(
                     H2("Users"),
                     P("Manage users and view their documents and permissions."),
-                    A("Manage Users", href="/users", cls="btn"),
-                    cls="feature-card"
+                    A("Manage Users", href="/users")
                 ),
-
-                # Permissions Feature
                 Div(
                     H2("Permissions"),
-                    P("Control document access by granting read, write, or admin permissions to users."),
-                    A("Manage Permissions", href="/permissions", cls="btn"),
-                    cls="feature-card"
-                ),
-
-                cls="features"
+                    P("Control document access by granting permissions to users."),
+                    A("Manage Permissions", href="/permissions")
+                )
             )
         )
     )

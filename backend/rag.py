@@ -8,7 +8,7 @@ import re
 # Load environment variables from .env file
 load_dotenv()
 
-# ✅ NEW API: Use PersistentClient instead of Client(Settings(...))
+# Initialize ChromaDB client
 chroma_client = chromadb.PersistentClient(
     path=os.getenv('CHROMA_PERSIST_DIR', './chroma_data')
 )
@@ -98,41 +98,6 @@ def chunk_by_markdown_sections(text: str, max_chars: int = 2000) -> list[dict]:
 
     return chunks
 
-def _split_large_section(text: str, title: Optional[str], max_chars: int) -> list[dict]:
-    """
-    DEPRECATED: Kept for backward compatibility.
-    Split text if it exceeds max_chars by paragraphs, otherwise return as single chunk.
-    """
-    if len(text) <= max_chars:
-        return [{
-            'text': text,
-            'section_title': title
-        }]
-
-    # If section is too large, split by paragraphs
-    chunks = []
-    paragraphs = text.split('\n\n')
-    current_chunk = ""
-
-    for para in paragraphs:
-        if len(current_chunk) + len(para) + 2 > max_chars:
-            if current_chunk:
-                chunks.append({
-                    'text': current_chunk.strip(),
-                    'section_title': title
-                })
-            current_chunk = para + "\n\n"
-        else:
-            current_chunk += para + "\n\n"
-
-    # Add remaining chunk
-    if current_chunk.strip():
-        chunks.append({
-            'text': current_chunk.strip(),
-            'section_title': title
-        })
-
-    return chunks
 
 def add_to_rag(document_id: str, version_id: str, title: str, content: str):
     """

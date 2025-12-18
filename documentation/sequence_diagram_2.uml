@@ -4,7 +4,7 @@ title AI Agent Query with Permission-Aware RAG Search
 actor User
 participant "Frontend\n(FastHTML)" as Frontend
 participant "Backend API\n(FastAPI)" as Backend
-participant "Database\n(SQLite)" as Database
+participant "Database\n(Supabase)" as Database
 participant "AI Agent\n(ai_agent.py)" as Agent
 participant "RAG System\n(rag.py)" as RAG
 participant "ChromaDB\n(Vector Store)" as Chroma

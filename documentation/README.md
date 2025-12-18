@@ -29,7 +29,7 @@ This directory contains all required deliverables for the ICS-601 Final Project.
   - Session management and CORS configuration
 
 - **Data Storage: Database & Vector Store** ✓
-  - SQLite database for relational data (users, documents, permissions, versions)
+  - Supabase database for relational data (users, documents, permissions, versions)
   - ChromaDB for vector embeddings and semantic search
   - Location: [backend/database.py](../backend/database.py), [backend/rag.py](../backend/rag.py)
 
@@ -87,7 +87,7 @@ This directory contains all required deliverables for the ICS-601 Final Project.
   - Maintains section context
 
 **RAG Workflow:**
-1. Document uploaded → stored in SQLite
+1. Document uploaded → stored in Supabase storage
 2. Content chunked by markdown sections
 3. Each chunk embedded and stored in ChromaDB with metadata
 4. User queries embedded and matched via cosine similarity
@@ -196,7 +196,7 @@ The codebase demonstrates clear separation of responsibilities:
 - ✅ Backend layer (API, models, schemas, business logic)
 - ✅ Frontend layer (main app, pages, shared components)
 - ✅ AI/Agent layer (agent, RAG system)
-- ✅ Data storage layer (SQLite, ChromaDB)
+- ✅ Data storage layer (Supabase, ChromaDB)
 - ✅ External services (OpenAI API)
 - ✅ Component relationships and dependencies
 - ✅ Detailed notes on each module's purpose

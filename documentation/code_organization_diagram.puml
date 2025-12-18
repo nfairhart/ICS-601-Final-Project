@@ -109,7 +109,7 @@ package "Frontend Layer\n(FastHTML)" FRONTEND_COLOR {
 }
 
 package "Data Storage Layer" DATA_COLOR {
-  database "SQLite Database\n(documents.db)" as SQLite {
+  database "Supabase Database\n(PostgreSQL)" as Supabase {
     [users]
     [documents]
     [document_versions]
@@ -150,8 +150,8 @@ Agent ..> OpenAI : API calls
 RAG ..> OpenAI : embeddings
 RAG --> ChromaDB : stores/queries
 
-Models --> SQLite : ORM mapping
-DB --> SQLite : connection
+Models --> Supabase : ORM mapping
+DB --> Supabase : connection
 
 ' Frontend connections
 FrontendMain --> UsersPage : routes to
@@ -176,7 +176,7 @@ SearchPage ..> App : HTTP requests
 PermsPage ..> App : HTTP requests
 AgentPage ..> App : HTTP requests
 
-note bottom of SQLite
+note bottom of Supabase
   Relational data storage:
   - User accounts
   - Document metadata
@@ -203,7 +203,7 @@ legend right
   - **Frontend**: User interface, pages
   - **Data Models**: Database schemas
   - **AI/Agent**: RAG, embeddings, LLM
-  - **Storage**: SQLite + ChromaDB
+  - **Storage**: Supabase + ChromaDB
 end legend
 
 @enduml

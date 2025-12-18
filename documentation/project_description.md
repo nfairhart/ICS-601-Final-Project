@@ -32,7 +32,7 @@ The system implements a complete RAG pipeline using **ChromaDB** as a vector sto
 - **Permission-aware retrieval**: Filters search results based on user access permissions
 
 **RAG Workflow:**
-1. Documents are uploaded and stored in SQLite database
+1. Documents are uploaded and stored in Supabase database
 2. Content is chunked using markdown section boundaries (max 2000 chars/chunk)
 3. Each chunk is embedded and stored in ChromaDB with metadata
 4. User queries are embedded and matched against the vector store
@@ -85,7 +85,7 @@ The agent autonomously selects appropriate tools based on user queries and maint
 - RESTful API built with FastAPI
 - FastHTML-based responsive frontend
 - ChromaDB vector database with persistent storage
-- SQLite relational database for structured data
+- Supabase relational database for structured data
 - Environment-based configuration management
 
 ## Architecture Highlights

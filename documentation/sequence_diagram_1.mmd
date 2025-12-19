@@ -1,0 +1,61 @@
+---
+title: Document Upload with RAG Indexing
+---
+sequenceDiagram
+    actor User
+    participant Frontend as Frontend<br/>(FastHTML)
+    participant Backend as Backend API<br/>(FastAPI)
+    participant Database as Database<br/>(Supabase)
+    participant RAG as RAG System<br/>(rag.py)
+    participant Chroma as ChromaDB<br/>(Vector Store)
+
+    rect rgb(240, 240, 240)
+        note right of User: Document Upload
+        User->>+Frontend: Navigate to Upload Page
+        Frontend-->>User: Display upload form
+
+        User->>Frontend: Enter title, description, content<br/>(markdown format)
+        Frontend->>+Backend: POST /api/documents<br/>{title, description, content}
+
+        Backend->>Backend: Validate request with<br/>DocumentCreate schema
+        Backend->>Backend: Get current user<br/>from session
+    end
+
+    rect rgb(230, 230, 250)
+        note right of Backend: Database Storage
+        Backend->>+Database: BEGIN Transaction
+        Backend->>Database: INSERT INTO documents<br/>(id, title, description, created_by, status='draft')
+        Database-->>Backend: Document ID
+
+        Backend->>Database: INSERT INTO document_versions<br/>(id, document_id, version_number=1, content)
+        Database-->>Backend: Version ID
+
+        Backend->>Database: INSERT INTO document_permissions<br/>(document_id, user_id, permission_type='manage')
+        Database-->>Backend: Permission ID
+        Backend->>Database: COMMIT Transaction
+        Database-->>-Backend: Success
+    end
+
+    rect rgb(230, 250, 230)
+        note right of Backend: RAG Indexing
+        Backend->>+RAG: add_to_rag(document_id, version_id,<br/>title, content)
+        RAG->>RAG: chunk_by_markdown_sections(content)<br/>(max 2000 chars per chunk)
+
+        note over RAG: Intelligent chunking:<br/>- Preserves markdown structure<br/>- Keeps headings with content<br/>- Splits on section boundaries
+
+        loop For each chunk
+            RAG->>+Chroma: Generate embedding via<br/>OpenAI text-embedding-3-small
+            Chroma-->>RAG: Embedding vector
+            RAG->>Chroma: upsert(ids, documents, metadatas)
+            note over Chroma: Metadata includes:<br/>- document_id<br/>- version_id<br/>- title<br/>- chunk_index<br/>- section_title
+            Chroma-->>-RAG: Chunk stored
+        end
+
+        RAG-->>-Backend: Indexed N chunks
+    end
+
+    rect rgb(240, 240, 240)
+        note right of Backend: Response
+        Backend-->>-Frontend: 200 OK<br/>{document_id, version_id, title, status}
+        Frontend-->>-User: Show success message<br/>Redirect to document list
+    end

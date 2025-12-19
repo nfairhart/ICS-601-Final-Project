@@ -1,0 +1,100 @@
+---
+title: Code Organization - Separation of Concerns
+---
+graph TB
+    subgraph backend["Backend Layer (FastAPI)"]
+        App["app.py<br/>FastAPI application<br/>- API route definitions<br/>- CORS configuration<br/>- Startup/shutdown events<br/>- Session middleware"]
+
+        subgraph data_models["Data Models"]
+            Models["models.py<br/>SQLAlchemy ORM models:<br/>- User<br/>- Document<br/>- DocumentVersion<br/>- DocumentPermission"]
+            Schemas["schemas.py<br/>Pydantic validation models:<br/>- UserCreate, UserUpdate<br/>- DocumentCreate, DocumentUpdate<br/>- SearchResult<br/>- PermissionCreate"]
+        end
+
+        subgraph business["Business Logic"]
+            DB["database.py<br/>Database configuration:<br/>- SQLAlchemy engine<br/>- SessionLocal factory<br/>- Base declarative class"]
+            Utils["utils.py<br/>Helper functions:<br/>- get_current_user()<br/>- set_current_user()<br/>- Session management"]
+        end
+
+        subgraph ai_layer["AI/Agent Layer"]
+            Agent["ai_agent.py<br/>Pydantic AI agent:<br/>- Agent initialization<br/>- 10 tool definitions<br/>- AgentContext<br/>- run_agent() function"]
+            RAG["rag.py<br/>RAG operations:<br/>- ChromaDB client<br/>- add_to_rag()<br/>- search_rag()<br/>- get_document_content()<br/>- get_similar_documents()<br/>- chunk_by_markdown_sections()"]
+        end
+    end
+
+    subgraph frontend["Frontend Layer (FastHTML)"]
+        FrontendMain["main.py<br/>FastHTML application:<br/>- Route definitions<br/>- Layout integration<br/>- Session handling"]
+
+        subgraph pages["Page Components"]
+            UsersPage["pages/users.py"]
+            DocsPage["pages/documents.py"]
+            UploadPage["pages/upload.py"]
+            SearchPage["pages/search.py"]
+            PermsPage["pages/permissions.py"]
+            AgentPage["pages/agent.py"]
+        end
+
+        subgraph shared["Shared Components"]
+            Layout["shared/layout.py<br/>Common UI elements:<br/>- Page layout<br/>- Navigation<br/>- Header/Footer"]
+        end
+    end
+
+    subgraph storage["Data Storage Layer"]
+        Supabase[("Supabase Database<br/>(PostgreSQL)<br/><br/>Relational data storage:<br/>- User accounts<br/>- Document metadata<br/>- Permissions<br/>- Version history")]
+        ChromaDB[("ChromaDB<br/>(Vector Store)<br/><br/>Vector storage:<br/>- Document embeddings<br/>- Semantic search<br/>- Similarity matching")]
+    end
+
+    subgraph external["External Services"]
+        OpenAI["OpenAI API<br/>- GPT-4o-mini (Agent LLM)<br/>- text-embedding-3-small (Embeddings)"]
+    end
+
+    %% Backend internal connections
+    App -->|uses| Models
+    App -->|validates with| Schemas
+    App -->|queries via| DB
+    App -->|uses| Utils
+    App -->|calls run_agent()| Agent
+    App -->|calls search/add| RAG
+
+    Agent -->|uses for retrieval| RAG
+    Agent -->|queries database| DB
+    Agent -->|accesses| Models
+    Agent -.->|API calls| OpenAI
+
+    RAG -.->|embeddings| OpenAI
+    RAG -->|stores/queries| ChromaDB
+
+    Models -->|ORM mapping| Supabase
+    DB -->|connection| Supabase
+
+    %% Frontend connections
+    FrontendMain -->|routes to| UsersPage
+    FrontendMain -->|routes to| DocsPage
+    FrontendMain -->|routes to| UploadPage
+    FrontendMain -->|routes to| SearchPage
+    FrontendMain -->|routes to| PermsPage
+    FrontendMain -->|routes to| AgentPage
+
+    UsersPage -->|uses| Layout
+    DocsPage -->|uses| Layout
+    UploadPage -->|uses| Layout
+    SearchPage -->|uses| Layout
+    PermsPage -->|uses| Layout
+    AgentPage -->|uses| Layout
+
+    %% Frontend to Backend connections
+    UsersPage -.->|HTTP requests| App
+    DocsPage -.->|HTTP requests| App
+    UploadPage -.->|HTTP requests| App
+    SearchPage -.->|HTTP requests| App
+    PermsPage -.->|HTTP requests| App
+    AgentPage -.->|HTTP requests| App
+
+    classDef backendStyle fill:#E3F2FD,stroke:#333,stroke-width:2px
+    classDef frontendStyle fill:#FFF3E0,stroke:#333,stroke-width:2px
+    classDef dataStyle fill:#F3E5F5,stroke:#333,stroke-width:2px
+    classDef aiStyle fill:#E8F5E9,stroke:#333,stroke-width:2px
+
+    class App,DB,Utils backendStyle
+    class Models,Schemas dataStyle
+    class Agent,RAG aiStyle
+    class FrontendMain,UsersPage,DocsPage,UploadPage,SearchPage,PermsPage,AgentPage,Layout frontendStyle

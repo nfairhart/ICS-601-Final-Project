@@ -1,0 +1,190 @@
+---
+title: Class Diagram - Data Models and Services
+---
+classDiagram
+    %% Database Models (Entities)
+    class User {
+        <<Entity>>
+        +UUID id
+        +string email
+        +string full_name
+        +string role
+        +datetime created_at
+        +datetime updated_at
+        --Relationships--
+        +documents List~Document~
+        +permissions List~DocumentPermission~
+    }
+
+    class Document {
+        <<Entity>>
+        +UUID id
+        +string title
+        +string description
+        +UUID created_by
+        +string status
+        +datetime created_at
+        +datetime updated_at
+        --Relationships--
+        +creator User
+        +versions List~DocumentVersion~
+        +permissions List~DocumentPermission~
+    }
+
+    class DocumentVersion {
+        <<Entity>>
+        +UUID id
+        +UUID document_id
+        +int version_number
+        +string content
+        +string change_summary
+        +UUID created_by
+        +datetime created_at
+        --Relationships--
+        +document Document
+        +creator User
+    }
+
+    class DocumentPermission {
+        <<Entity>>
+        +UUID id
+        +UUID document_id
+        +UUID user_id
+        +string permission_type
+        +UUID granted_by
+        +datetime created_at
+        --Relationships--
+        +document Document
+        +user User
+        +grantor User
+    }
+
+    %% Pydantic Schemas
+    class DocumentCreate {
+        <<Schema>>
+        +string title
+        +string description
+        +string content
+    }
+
+    class DocumentUpdate {
+        <<Schema>>
+        +Optional~string~ title
+        +Optional~string~ description
+        +Optional~string~ content
+        +Optional~string~ change_summary
+        +Optional~string~ status
+    }
+
+    class SearchResult {
+        <<Schema>>
+        +string document_id
+        +string version_id
+        +string title
+        +string content
+        +float score
+    }
+
+    class UserCreate {
+        <<Schema>>
+        +string email
+        +string full_name
+        +string role
+    }
+
+    %% AI/RAG Components
+    class RAGSystem {
+        <<Service>>
+        -ChromaClient chroma_client
+        -OpenAIEmbeddingFunction embedding_fn
+        +add_to_rag(doc_id, version_id, title, content)
+        +search_rag(query, accessible_docs, top_k)
+        +get_document_content(doc_id, version_id)
+        +get_similar_documents(doc_id, top_k)
+        +delete_from_rag(doc_id, version_id)
+        +chunk_by_markdown_sections(text, max_chars)
+    }
+
+    class AIAgent {
+        <<Agent>>
+        -Agent agent
+        -string model
+        -string system_prompt
+        +run_agent(user_id, user_email, query) string
+        --Tools--
+        +search_documents(query, top_k)
+        +list_user_documents(limit)
+        +get_document_info(doc_id)
+        +get_full_document_content(doc_id)
+        +summarize_document(doc_id, max_length)
+        +find_related_documents(doc_id, top_k)
+        +compare_documents(doc_id_1, doc_id_2)
+        +extract_key_points(doc_id, num_points)
+        +answer_from_document(doc_id, question)
+    }
+
+    class AgentContext {
+        <<Context>>
+        +UUID user_id
+        +string user_email
+        +List~string~ accessible_doc_ids
+    }
+
+    class ChromaCollection {
+        <<VectorStore>>
+        +string name
+        +string space
+        --Stored Data--
+        +ids List~string~
+        +embeddings List~vector~
+        +documents List~string~
+        +metadatas List~dict~
+    }
+
+    %% Relationships - Entity relationships
+    User "1" -- "0..*" Document : creates
+    User "1" -- "0..*" DocumentPermission : has
+    User "1" -- "0..*" DocumentVersion : creates
+
+    Document "1" -- "1..*" DocumentVersion : has versions
+    Document "1" -- "0..*" DocumentPermission : controls access
+
+    DocumentPermission "*" -- "1" User : grants access to
+    DocumentPermission "*" -- "1" Document : controls
+
+    %% Relationships - AI/Agent
+    AIAgent ..> AgentContext : uses
+    AIAgent ..> RAGSystem : queries
+    AIAgent ..> Document : retrieves via tools
+    AIAgent ..> DocumentPermission : checks access
+
+    RAGSystem ..> ChromaCollection : stores/queries
+    RAGSystem ..> DocumentVersion : indexes content
+
+    %% Relationships - Schemas
+    DocumentCreate ..> Document : creates
+    DocumentUpdate ..> DocumentVersion : creates new version
+    RAGSystem ..> SearchResult : returns
+
+    %% Notes
+    note for AIAgent "Pydantic AI agent with 10 tools\nfor document operations.\nMaintains user context and\nenforces permissions."
+
+    note for RAGSystem "Handles vector embeddings,\nchunking strategy, and\nsemantic search using ChromaDB."
+
+    note for ChromaCollection "Persistent vector store containing\ndocument chunk embeddings with\nmetadata for filtering and retrieval."
+
+    %% Styling
+    style User fill:#E8F4F8
+    style Document fill:#E8F4F8
+    style DocumentVersion fill:#E8F4F8
+    style DocumentPermission fill:#E8F4F8
+
+    style DocumentCreate fill:#FFF4E6
+    style DocumentUpdate fill:#FFF4E6
+    style SearchResult fill:#FFF4E6
+    style UserCreate fill:#FFF4E6
+
+    style RAGSystem fill:#F0E8FF
+    style AIAgent fill:#F0E8FF
+    style AgentContext fill:#F0E8FF
+    style ChromaCollection fill:#F0E8FF

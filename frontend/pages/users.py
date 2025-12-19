@@ -40,6 +40,47 @@ async def get_user_by_id(user_id: str):
         print(f"Error fetching user: {e}")
         return None
 
+async def get_user_documents(user_id: str):
+    """Fetch all documents created by a specific user"""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get all documents and filter by created_by
+            response = await client.get(f"{API_BASE}/documents")
+            response.raise_for_status()
+            all_documents = response.json()
+            # Filter documents created by this user
+            return [doc for doc in all_documents if doc.get('created_by') == user_id]
+    except Exception as e:
+        print(f"Error fetching user documents: {e}")
+        return []
+
+async def get_user_permissions(user_id: str):
+    """Fetch all permissions granted to a specific user"""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get all documents
+            docs_response = await client.get(f"{API_BASE}/documents")
+            docs_response.raise_for_status()
+            all_documents = docs_response.json()
+
+            # For each document, get its permissions and filter for this user
+            user_permissions = []
+            for doc in all_documents:
+                perms_response = await client.get(f"{API_BASE}/documents/{doc['id']}/permissions")
+                if perms_response.status_code == 200:
+                    perms = perms_response.json()
+                    # Filter permissions for this user
+                    user_perms = [p for p in perms if p.get('user_id') == user_id]
+                    for perm in user_perms:
+                        # Add document info to the permission
+                        perm['document_title'] = doc.get('title')
+                        user_permissions.append(perm)
+
+            return user_permissions
+    except Exception as e:
+        print(f"Error fetching user permissions: {e}")
+        return []
+
 async def create_user(email: str, full_name: Optional[str] = None, role: Optional[str] = None):
     """
     Create a new user.
@@ -265,7 +306,10 @@ def render_user_details(user, error=None):
                     H3("Documents Created"),
                     user.get("documents") and len(user.get("documents")) > 0 and Ul(
                         *[Li(
-                            f"{doc.get('title')} ({doc.get('status')})"
+                            A(
+                                f"{doc.get('title')} ({doc.get('status')})",
+                                href=f"/documents/{doc.get('id')}"
+                            )
                         ) for doc in user.get("documents", [])]
                     ) or P("No documents created yet.", style="color: #666;"),
                     cls="detail-section"
@@ -275,8 +319,12 @@ def render_user_details(user, error=None):
                     H3("Document Permissions"),
                     user.get("permissions") and len(user.get("permissions")) > 0 and Ul(
                         *[Li(
-                            Span(f"Document ID: {perm.get('document_id')}", style="margin-right: 10px;"),
-                            Span(perm.get('permission_type'), cls="badge")
+                            A(
+                                perm.get('document_title', f"Document ID: {perm.get('document_id')}"),
+                                href=f"/documents/{perm.get('document_id')}",
+                                style="margin-right: 10px;"
+                            ),
+                            Span(f" - {perm.get('permission_type')}", cls="badge")
                         ) for perm in user.get("permissions", [])]
                     ) or P("No permissions granted yet.", style="color: #666;"),
                     cls="detail-section"

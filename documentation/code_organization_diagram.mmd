@@ -52,8 +52,8 @@ graph TB
     App -->|validates with| Schemas
     App -->|queries via| DB
     App -->|uses| Utils
-    App -->|calls run_agent()| Agent
-    App -->|calls search/add| RAG
+    App -->|calls run_agent| Agent
+    App -->|calls search and add| RAG
 
     Agent -->|uses for retrieval| RAG
     Agent -->|queries database| DB

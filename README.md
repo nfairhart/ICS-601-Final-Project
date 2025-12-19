@@ -2,6 +2,8 @@
 
 A comprehensive document management application with AI-powered semantic search, document analysis, and intelligent question-answering capabilities.
 
+Video Demo: https://drive.google.com/file/d/1kjKYqzkxe8LIjnw7gKaSUjRPENh5-ab9/view?usp=drive_link  
+
 ## Features
 
 - **User Management**: Role-based access control (Admin, Editor, Viewer)

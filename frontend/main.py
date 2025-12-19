@@ -1,7 +1,8 @@
 from fasthtml.common import *
 import httpx
 from pages.users import (
-    get_users, get_user_by_id, create_user, update_user,
+    get_users, get_user_by_id, get_user_documents, get_user_permissions,
+    create_user, update_user,
     render_users_list, render_user_form, render_user_details
 )
 from pages.agent import (
@@ -399,6 +400,14 @@ async def post(email: str, full_name: str = "", role: str = ""):
 async def get(user_id: str):
     """User details page"""
     user = await get_user_by_id(user_id)
+    documents = await get_user_documents(user_id)
+    permissions = await get_user_permissions(user_id)
+
+    # Add documents and permissions to user object
+    if user:
+        user['documents'] = documents
+        user['permissions'] = permissions
+
     return render_user_details(user)
 
 @rt("/users/{user_id}/edit")
